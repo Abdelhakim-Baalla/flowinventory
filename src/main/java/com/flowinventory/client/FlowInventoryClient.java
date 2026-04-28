@@ -47,7 +47,9 @@ public class FlowInventoryClient implements ClientModInitializer {
 
             // Handle sort keybind (R)
             while (KEY_SORT.wasPressed()) {
-                inventoryManager.sortPlayerInventory(client.player);
+                if (client.currentScreen == null) {
+                    inventoryManager.sortPlayerInventory(client.player);
+                }
             }
 
             // Handle profile cycle keybind (G)
