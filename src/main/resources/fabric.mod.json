@@ -20,7 +20,6 @@
       "com.flowinventory.FlowInventoryMod"
     ],
     "client": [
-      "com.flowinventory.FlowInventoryClient",
       "com.flowinventory.client.FlowInventoryClient"
     ]
   },
