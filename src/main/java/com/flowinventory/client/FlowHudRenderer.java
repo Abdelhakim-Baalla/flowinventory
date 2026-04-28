@@ -12,7 +12,7 @@ public class FlowHudRenderer {
     private static final int MARGIN = 4;
     private static final int BG_COLOR = 0x88000000;
 
-    public void render(DrawContext context, float tickDelta) {
+    public void render(DrawContext context, float delta) {
         MinecraftClient client = MinecraftClient.getInstance();
 
         if (!FlowInventoryMod.config.showHudOverlay) return;
