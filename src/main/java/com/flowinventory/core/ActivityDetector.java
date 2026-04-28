@@ -6,6 +6,10 @@ import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.*;
 import net.minecraft.registry.Registries;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
+import com.flowinventory.network.ActivityChangePacket;
+import net.minecraft.network.PacketByteBuf;
 
 public class ActivityDetector {
 
@@ -30,12 +34,20 @@ public class ActivityDetector {
     }
 
     public void forceSetActivity(ActivityType activity) {
+        if (currentActivity == activity) return;
+        
         currentActivity = activity;
         detectedActivity = activity;
         stabilityCounter = SWITCH_THRESHOLD;
         // Reset history to new activity
         for (int i = 0; i < HISTORY_SIZE; i++) {
             history[i] = activity;
+        }
+
+        if (FlowInventoryMod.config.autoApplyProfile) {
+            PacketByteBuf buf = PacketByteBufs.create();
+            buf.writeString(currentActivity.name());
+            ClientPlayNetworking.send(ActivityChangePacket.ID, buf);
         }
     }
 
@@ -58,6 +70,12 @@ public class ActivityDetector {
                         "[FlowInventory] Activity changed to: {}",
                         currentActivity.displayName
                 );
+
+                if (FlowInventoryMod.config.autoApplyProfile) {
+                    PacketByteBuf buf = PacketByteBufs.create();
+                    buf.writeString(currentActivity.name());
+                    ClientPlayNetworking.send(ActivityChangePacket.ID, buf);
+                }
             }
         } else {
             detectedActivity = dominant;

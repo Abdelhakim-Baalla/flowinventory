@@ -1,6 +1,8 @@
 package com.flowinventory.server;
 
 import com.flowinventory.network.SortInventoryPacket;
+import com.flowinventory.network.ActivityChangePacket;
+import com.flowinventory.profiles.ActivityType;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.*;
@@ -15,6 +17,21 @@ public class FlowInventoryServer {
                 SortInventoryPacket.ID,
                 (server, player, handler, buf, responseSender) -> {
                     server.execute(() -> sortInventory(player));
+                }
+        );
+
+        ServerPlayNetworking.registerGlobalReceiver(
+                ActivityChangePacket.ID,
+                (server, player, handler, buf, responseSender) -> {
+                    String activityName = buf.readString();
+                    server.execute(() -> {
+                        try {
+                            ActivityType newActivity = ActivityType.valueOf(activityName);
+                            HotbarSwapper.swapHotbar(player, newActivity);
+                        } catch (IllegalArgumentException e) {
+                            // Invalid activity
+                        }
+                    });
                 }
         );
     }
