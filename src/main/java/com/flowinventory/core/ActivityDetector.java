@@ -2,9 +2,10 @@ package com.flowinventory.core;
 
 import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.profiles.ActivityType;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.mob.HostileEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.item.*;
+import net.minecraft.registry.Registries;
 
 public class ActivityDetector {
 
@@ -64,7 +65,7 @@ public class ActivityDetector {
         }
     }
 
-    private ActivityType analyzePlayer(ClientPlayerEntity player) {
+    private ActivityType analyzePlayer(PlayerEntity player) {
         ItemStack heldItem = player.getMainHandStack();
         Item item = heldItem.getItem();
 
@@ -106,6 +107,48 @@ public class ActivityDetector {
         if (itemId.contains("melon")) return ActivityType.FARMING;
         if (itemId.contains("pumpkin")) return ActivityType.FARMING;
         if (itemId.contains("bone_meal")) return ActivityType.FARMING;
+        
+        // ── Farming: all crop-related blocks ─────────────────
+        if (itemId.contains("sapling")) return ActivityType.FARMING;
+        if (itemId.contains("bamboo")) return ActivityType.FARMING;
+        if (itemId.contains("cocoa")) return ActivityType.FARMING;
+        if (itemId.contains("mushroom")) return ActivityType.FARMING;
+        if (itemId.contains("flower")) return ActivityType.FARMING;
+        if (itemId.contains("egg")) return ActivityType.FARMING;
+
+        // ── Mining: ores and mining items ─────────────────────
+        if (itemId.contains("ore")) return ActivityType.MINING;
+        if (itemId.contains("torch")) return ActivityType.MINING;
+        if (itemId.contains("tnt")) return ActivityType.MINING;
+        if (itemId.contains("chest")) return ActivityType.MINING;
+
+        // ── Combat: armor and potions ─────────────────────────
+        if (item instanceof ArmorItem) return ActivityType.COMBAT;
+        if (item instanceof ShieldItem) return ActivityType.COMBAT;
+        if (itemId.contains("potion")) return ActivityType.COMBAT;
+        if (itemId.contains("golden_apple")) return ActivityType.COMBAT;
+        if (itemId.contains("totem")) return ActivityType.COMBAT;
+
+        // ── Building: all building materials ──────────────────
+        if (itemId.contains("planks")) return ActivityType.BUILDING;
+        if (itemId.contains("stone")) return ActivityType.BUILDING;
+        if (itemId.contains("brick")) return ActivityType.BUILDING;
+        if (itemId.contains("glass")) return ActivityType.BUILDING;
+        if (itemId.contains("wool")) return ActivityType.BUILDING;
+        if (itemId.contains("concrete")) return ActivityType.BUILDING;
+        if (itemId.contains("terracotta")) return ActivityType.BUILDING;
+        if (itemId.contains("wood")) return ActivityType.BUILDING;
+        if (itemId.contains("log")) return ActivityType.BUILDING;
+        if (itemId.contains("slab")) return ActivityType.BUILDING;
+        if (itemId.contains("stair")) return ActivityType.BUILDING;
+        if (itemId.contains("fence")) return ActivityType.BUILDING;
+        if (itemId.contains("door")) return ActivityType.BUILDING;
+        if (itemId.contains("trapdoor")) return ActivityType.BUILDING;
+        if (itemId.contains("scaffold")) return ActivityType.BUILDING;
+        if (itemId.contains("ladder")) return ActivityType.BUILDING;
+        if (itemId.contains("carpet")) return ActivityType.BUILDING;
+        if (itemId.contains("bed")) return ActivityType.BUILDING;
+        if (itemId.contains("torch")) return ActivityType.BUILDING;
 
         // ── Building: holding blocks ─────────────────────────
         if (item instanceof BlockItem) return ActivityType.BUILDING;
