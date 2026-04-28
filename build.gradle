@@ -18,18 +18,11 @@ repositories {
 }
 
 loom {
-	splitEnvironmentSourceSets()
-
 	mods {
 		"flowinventory" {
 			sourceSet sourceSets.main
-			sourceSet sourceSets.client
 		}
 	}
-}
-
-fabricApi {
-	configureDataGeneration()
 }
 
 dependencies {
