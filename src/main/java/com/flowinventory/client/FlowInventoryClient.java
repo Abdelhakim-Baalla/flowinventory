@@ -8,6 +8,9 @@ import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
+import com.flowinventory.network.SortInventoryPacket;
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 
 public class FlowInventoryClient implements ClientModInitializer {
 
@@ -24,7 +27,7 @@ public class FlowInventoryClient implements ClientModInitializer {
         KEY_SORT = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.flowinventory.sort",
                 InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_F,
+                GLFW.GLFW_KEY_R,
                 "category.flowinventory.main"
         ));
 
@@ -45,10 +48,14 @@ public class FlowInventoryClient implements ClientModInitializer {
             // Update activity detector every tick
             FlowInventoryMod.activityDetector.tick(client.player);
 
-            // Handle sort keybind (R)
+            // Handle sort keybind
             while (KEY_SORT.wasPressed()) {
-                inventoryManager.sortPlayerInventory(client.player);
-                FlowInventoryMod.LOGGER.info("[FlowInventory] Sort triggered!");
+                // أرسل packet للـ server بدل ما نعدل locally
+                ClientPlayNetworking.send(
+                        SortInventoryPacket.ID,
+                        PacketByteBufs.empty()
+                );
+                FlowInventoryMod.LOGGER.info("[FlowInventory] Sort packet sent!");
             }
 
             // Handle profile cycle keybind (G)

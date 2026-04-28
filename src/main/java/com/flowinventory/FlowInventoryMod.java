@@ -5,6 +5,7 @@ import com.flowinventory.core.ActivityDetector;
 import net.fabricmc.api.ModInitializer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import com.flowinventory.server.FlowInventoryServer;
 
 public class FlowInventoryMod implements ModInitializer {
 
@@ -20,5 +21,6 @@ public class FlowInventoryMod implements ModInitializer {
         activityDetector = new ActivityDetector();
 
         LOGGER.info("[FlowInventory] Mod loaded! Auto-detect: " + config.autoDetectActivity);
+        FlowInventoryServer.register();
     }
 }
