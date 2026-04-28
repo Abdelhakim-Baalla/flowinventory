@@ -24,7 +24,7 @@ public class FlowInventoryClient implements ClientModInitializer {
         KEY_SORT = KeyBindingHelper.registerKeyBinding(new KeyBinding(
                 "key.flowinventory.sort",
                 InputUtil.Type.KEYSYM,
-                GLFW.GLFW_KEY_R,
+                GLFW.GLFW_KEY_Z,
                 "category.flowinventory.main"
         ));
 
@@ -47,9 +47,7 @@ public class FlowInventoryClient implements ClientModInitializer {
 
             // Handle sort keybind (R)
             while (KEY_SORT.wasPressed()) {
-                if (client.currentScreen == null) {
-                    inventoryManager.sortPlayerInventory(client.player);
-                }
+                inventoryManager.sortPlayerInventory(client.player);
             }
 
             // Handle profile cycle keybind (G)
