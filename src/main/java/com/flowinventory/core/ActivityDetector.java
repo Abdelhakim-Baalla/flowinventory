@@ -2,7 +2,7 @@ package com.flowinventory.core;
 
 import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.profiles.ActivityType;
-import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.item.*;
 
@@ -32,7 +32,7 @@ public class ActivityDetector {
         currentActivity = activity;
     }
 
-    public void tick(ClientPlayerEntity player) {
+    public void tick(PlayerEntity player) {
         if (player == null) return;
         if (!FlowInventoryMod.config.autoDetectActivity) return;
 
@@ -58,7 +58,7 @@ public class ActivityDetector {
         }
     }
 
-    private ActivityType analyzePlayer(ClientPlayerEntity player) {
+    private ActivityType analyzePlayer(PlayerEntity player) {
         ItemStack heldItem = player.getMainHandStack();
         Item item = heldItem.getItem();
 
