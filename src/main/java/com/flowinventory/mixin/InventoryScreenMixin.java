@@ -24,8 +24,8 @@ public abstract class InventoryScreenMixin extends AbstractInventoryScreen<Playe
     @Inject(method = "init", at = @At("RETURN"))
     private void addSortButton(CallbackInfo ci) {
         // Place button near the top right of the inventory window
-        int buttonX = this.x + 128;
-        int buttonY = this.y + 7;
+        int buttonX = this.x + 125;
+        int buttonY = this.y + 61;
         
         this.addDrawableChild(ButtonWidget.builder(Text.literal("Sort ▼"), button -> {
             ClientPlayNetworking.send(SortInventoryPacket.ID, PacketByteBufs.empty());
