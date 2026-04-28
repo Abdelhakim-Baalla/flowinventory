@@ -14,7 +14,6 @@ public class FlowInventoryServer {
         ServerPlayNetworking.registerGlobalReceiver(
                 SortInventoryPacket.ID,
                 (server, player, handler, buf, responseSender) -> {
-                    // يشتغل على الـ server thread
                     server.execute(() -> sortInventory(player));
                 }
         );
@@ -23,9 +22,9 @@ public class FlowInventoryServer {
     private static void sortInventory(ServerPlayerEntity player) {
         PlayerInventory inventory = player.getInventory();
 
-        // جمع items من slots 9-35 (main inventory)
+        // Collect items from ALL inventory slots: hotbar (0-8) + main (9-35)
         List<ItemStack> items = new ArrayList<>();
-        for (int slot = 9; slot < 36; slot++) {
+        for (int slot = 0; slot < 36; slot++) {
             ItemStack stack = inventory.getStack(slot);
             if (!stack.isEmpty()) {
                 items.add(stack.copy());
@@ -35,7 +34,10 @@ public class FlowInventoryServer {
 
         if (items.isEmpty()) return;
 
-        // ترتيب
+        // Merge same-type stacks
+        items = mergeStacks(items);
+
+        // Sort by category then name
         items.sort((a, b) -> {
             int catA = getCategoryOrder(a.getItem());
             int catB = getCategoryOrder(b.getItem());
@@ -44,21 +46,81 @@ public class FlowInventoryServer {
                     .compareTo(b.getName().getString());
         });
 
-        // كتابة back
-        int slot = 9;
+        // Write back to slots 0-35
+        int slot = 0;
         for (ItemStack stack : items) {
-            inventory.setStack(slot++, stack);
+            if (slot < 36) {
+                inventory.setStack(slot++, stack);
+            }
+        }
+        // Clear remaining slots
+        while (slot < 36) {
+            inventory.setStack(slot++, ItemStack.EMPTY);
         }
 
-        // sync مع الـ client تلقائياً لأننا على الـ server
+        // Sync with client
         player.playerScreenHandler.syncState();
 
-        // رسالة للاعب
         player.sendMessage(
                 net.minecraft.text.Text.literal("✓ Inventory sorted!")
                         .formatted(net.minecraft.util.Formatting.GREEN),
                 true
         );
+    }
+
+    private static List<ItemStack> mergeStacks(List<ItemStack> items) {
+        Map<String, List<ItemStack>> grouped = new LinkedHashMap<>();
+
+        for (ItemStack stack : items) {
+            if (stack.isEmpty()) continue;
+            String key = getStackKey(stack);
+            grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(stack);
+        }
+
+        List<ItemStack> result = new ArrayList<>();
+        for (List<ItemStack> group : grouped.values()) {
+            // Merge into full stacks
+            ItemStack current = group.get(0).copy();
+            for (int i = 1; i < group.size(); i++) {
+                ItemStack toMerge = group.get(i);
+                int canAdd = current.getMaxCount() - current.getCount();
+                int toAdd = Math.min(canAdd, toMerge.getCount());
+                current.increment(toAdd);
+
+                int leftover = toMerge.getCount() - toAdd;
+                if (current.getCount() >= current.getMaxCount()) {
+                    result.add(current);
+                    if (leftover > 0) {
+                        current = toMerge.copy();
+                        current.setCount(leftover);
+                    } else {
+                        current = null;
+                        // Continue to next, will be set by next iteration or after loop
+                        if (i + 1 < group.size()) {
+                            current = group.get(i + 1).copy();
+                            i++;
+                        }
+                    }
+                } else if (leftover > 0) {
+                    // current has space but leftover exists (shouldn't happen, but safety)
+                    ItemStack leftoverStack = toMerge.copy();
+                    leftoverStack.setCount(leftover);
+                    result.add(current);
+                    current = leftoverStack;
+                }
+            }
+            if (current != null && !current.isEmpty()) {
+                result.add(current);
+            }
+        }
+        return result;
+    }
+
+    private static String getStackKey(ItemStack stack) {
+        if (stack.hasNbt()) {
+            return stack.getItem().toString() + "_nbt_" + stack.getNbt().hashCode();
+        }
+        return stack.getItem().toString();
     }
 
     private static int getCategoryOrder(Item item) {

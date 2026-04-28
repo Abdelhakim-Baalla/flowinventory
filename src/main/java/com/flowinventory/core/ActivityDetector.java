@@ -11,8 +11,8 @@ public class ActivityDetector {
 
     private ActivityType currentActivity = ActivityType.GENERAL;
 
-    private static final int HISTORY_SIZE = 60;
-    private static final int SWITCH_THRESHOLD = 30;
+    private static final int HISTORY_SIZE = 10;
+    private static final int SWITCH_THRESHOLD = 5;
 
     private ActivityType detectedActivity = ActivityType.GENERAL;
     private int stabilityCounter = 0;

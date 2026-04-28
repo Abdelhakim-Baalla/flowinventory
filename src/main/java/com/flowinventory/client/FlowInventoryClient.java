@@ -5,6 +5,9 @@ import com.flowinventory.core.InventoryManager;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenEvents;
+import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
+import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
 import org.lwjgl.glfw.GLFW;
@@ -48,9 +51,8 @@ public class FlowInventoryClient implements ClientModInitializer {
             // Update activity detector every tick
             FlowInventoryMod.activityDetector.tick(client.player);
 
-            // Handle sort keybind
+            // Handle sort keybind (works outside inventory)
             while (KEY_SORT.wasPressed()) {
-                // أرسل packet للـ server بدل ما نعدل locally
                 ClientPlayNetworking.send(
                         SortInventoryPacket.ID,
                         PacketByteBufs.empty()
@@ -72,6 +74,21 @@ public class FlowInventoryClient implements ClientModInitializer {
             }
         });
 
+        // ── Sort key inside inventory screen ──────────────
+        ScreenEvents.AFTER_INIT.register((client, screen, scaledWidth, scaledHeight) -> {
+            if (screen instanceof InventoryScreen) {
+                ScreenKeyboardEvents.beforeKeyPress(screen).register((scr, key, scancode, modifiers) -> {
+                    if (KEY_SORT.matchesKey(key, scancode)) {
+                        ClientPlayNetworking.send(
+                                SortInventoryPacket.ID,
+                                PacketByteBufs.empty()
+                        );
+                        FlowInventoryMod.LOGGER.info("[FlowInventory] Sort packet sent (from inventory screen)!");
+                    }
+                });
+            }
+        });
+
         FlowInventoryMod.LOGGER.info("[FlowInventory] Client ready!");
 
         // ── HUD Renderer ──────────────────────────────────
@@ -80,4 +97,4 @@ public class FlowInventoryClient implements ClientModInitializer {
                     new FlowHudRenderer().render(context, tickDelta);
                 });
     }
-}
+}
