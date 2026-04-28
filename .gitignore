@@ -1,25 +1,40 @@
-# Gradle
+# ── Build ──────────────────────────────────
 .gradle/
 build/
 out/
+*.class
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
 
-# IntelliJ IDEA
+# ── IDE ────────────────────────────────────
 .idea/
 *.iml
 *.iws
 *.ipr
-
-# Eclipse
 .classpath
 .project
 .settings/
-
-# VS Code
 .vscode/
+*.swp
+*.swo
+*~
 
-# Minecraft run directories
+# ── Minecraft run directories ─────────────
 run/
 
-# Generated sources (Yarn mappings)
-.gradle/
-gradle-8.8-bin.zip
+# ── OS files ───────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── Gradle distribution zips ──────────────
+gradle-*.zip
+
+# ── Logs ───────────────────────────────────
+*.log
+logs/
+crash-reports/
+
+# ── Mod output ─────────────────────────────
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
