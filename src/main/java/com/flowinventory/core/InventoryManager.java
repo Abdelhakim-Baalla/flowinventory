@@ -24,9 +24,9 @@ public class InventoryManager {
 
         PlayerInventory inventory = player.getInventory();
 
-        // Step 1: collect items from slots 9-35 (main inventory, not hotbar)
+        // Step 1: collect items from ALL slots 0-35 (hotbar + main inventory)
         List<ItemStack> items = new ArrayList<>();
-        for (int slot = 9; slot < 36; slot++) {
+        for (int slot = 0; slot < 36; slot++) {
             ItemStack stack = inventory.getStack(slot);
             if (!stack.isEmpty()) {
                 items.add(stack.copy());
@@ -38,10 +38,12 @@ public class InventoryManager {
         // Step 2: sort
         List<ItemStack> sorted = sortByType(mergeStacks(items));
 
-        // Step 3: write back
-        int slotIndex = 9;
+        // Step 3: write back to slots 0-35
+        int slotIndex = 0;
         for (ItemStack stack : sorted) {
-            inventory.setStack(slotIndex++, stack);
+            if (slotIndex < 36) {
+                inventory.setStack(slotIndex++, stack);
+            }
         }
         while (slotIndex < 36) {
             inventory.setStack(slotIndex++, ItemStack.EMPTY);
