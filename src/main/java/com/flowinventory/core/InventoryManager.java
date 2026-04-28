@@ -2,7 +2,7 @@ package com.flowinventory.core;
 
 import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.profiles.ActivityType;
-import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
 import net.minecraft.item.*;
 import net.minecraft.text.Text;
@@ -12,7 +12,7 @@ import java.util.*;
 
 public class InventoryManager {
 
-    public void sortPlayerInventory(ClientPlayerEntity player) {
+    public void sortPlayerInventory(PlayerEntity player) {
         if (player == null) return;
 
         ActivityType activity = FlowInventoryMod.activityDetector.getCurrentActivity();
@@ -74,7 +74,7 @@ public class InventoryManager {
         if (item instanceof HoeItem) return 5;
         if (item instanceof ArmorItem) return 6;
         if (item instanceof ShieldItem) return 7;
-        if (item instanceof FoodItem) return 8;
+        if (item.getFoodComponent() != null) return 8;
         if (item instanceof BlockItem) return 9;
         return 10;
     }
