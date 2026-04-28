@@ -65,5 +65,11 @@ public class FlowInventoryClient implements ClientModInitializer {
         });
 
         FlowInventoryMod.LOGGER.info("[FlowInventory] Client ready!");
+
+        // ── HUD Renderer ──────────────────────────────────
+        net.fabricmc.fabric.api.client.rendering.v1.HudRenderCallback.EVENT
+                .register((context, tickDelta) -> {
+                    new FlowHudRenderer().render(context, tickDelta);
+                });
     }
 }
