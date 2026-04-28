@@ -1,0 +1,24 @@
+# Gradle
+.gradle/
+build/
+out/
+
+# IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Eclipse
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# Minecraft run directories
+run/
+
+# Generated sources (Yarn mappings)
+.gradle/

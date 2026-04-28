@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "flowinventory",
+  "version": "${version}",
+  "name": "FlowInventory",
+  "description": "Smart AI-style inventory management. Auto-detects your activity (Mining, Combat, Building, Farming) and organizes your inventory automatically. No more manual sorting!",
+  "authors": [
+    "Abdelhakim Baalla"
+  ],
+  "contact": {
+    "homepage": "https://github.com/AbdelhakimBaalla/flowinventory",
+    "sources": "https://github.com/AbdelhakimBaalla/flowinventory",
+    "issues": "https://github.com/AbdelhakimBaalla/flowinventory/issues"
+  },
+  "license": "MIT",
+  "icon": "assets/flowinventory/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "main": [
+      "com.flowinventory.FlowInventoryMod"
+    ],
+    "client": [
+      "com.flowinventory.FlowInventoryClient"
+    ]
+  },
+  "mixins": [
+    "flowinventory.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.15.0",
+    "fabric-api": "*",
+    "minecraft": "~1.20.1",
+    "java": ">=21"
+  },
+  "suggests": {
+    "modmenu": "*"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "required": true,
+  "package": "com.flowinventory.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "PlayerEntityMixin"
+  ],
+  "client": [
+    "InventoryScreenMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}

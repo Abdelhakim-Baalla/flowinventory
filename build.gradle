@@ -1,0 +1,86 @@
+plugins {
+	id 'fabric-loom' version '1.9.2'
+	id 'maven-publish'
+}
+
+version = project.mod_version
+group = project.maven_group
+
+base {
+	archivesName = project.archives_base_name
+}
+
+repositories {
+	// Cloth Config — for settings GUI
+	maven { url "https://maven.shedaniel.me/" }
+	// Mod Menu — shows mod in the mods list
+	maven { url "https://maven.terraformersmc.com/releases/" }
+}
+
+loom {
+	splitEnvironmentSourceSets()
+
+	mods {
+		"flowinventory" {
+			sourceSet sourceSets.main
+			sourceSet sourceSets.client
+		}
+	}
+}
+
+fabricApi {
+	configureDataGeneration()
+}
+
+dependencies {
+	// Minecraft + Fabric
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+	modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+
+	// Cloth Config — settings GUI (optional, included in jar)
+	modImplementation("me.shedaniel.cloth:cloth-config-fabric:13.0.121") {
+		exclude(group: "net.fabricmc.fabric-api")
+	}
+	include "me.shedaniel.cloth:cloth-config-fabric:13.0.121"
+
+	// Mod Menu integration (optional)
+	modImplementation "com.terraformersmc:modmenu:9.0.0"
+}
+
+processResources {
+	inputs.property "version", project.version
+
+	filesMatching("fabric.mod.json") {
+		expand "version": project.version
+	}
+}
+
+tasks.withType(JavaCompile).configureEach {
+	it.options.release = 21
+}
+
+java {
+	withSourcesJar()
+	sourceCompatibility = JavaVersion.VERSION_21
+	targetCompatibility = JavaVersion.VERSION_21
+}
+
+jar {
+	from("LICENSE") {
+		rename { "${it}_${project.base.archivesName.get()}" }
+	}
+}
+
+publishing {
+	publications {
+		create("mavenJava", MavenPublication) {
+			artifactId = project.archives_base_name
+			from components.java
+		}
+	}
+	repositories {
+		// local only for now
+	}
+}

@@ -1,0 +1,31 @@
+{
+  "modmenu.nameTranslation.flowinventory": "FlowInventory",
+  "modmenu.descriptionTranslation.flowinventory": "Smart AI-style inventory management. Auto-detects your activity and organizes your inventory.",
+
+  "category.flowinventory.main": "FlowInventory",
+  "key.flowinventory.sort": "Sort Inventory",
+  "key.flowinventory.next_profile": "Cycle Activity Profile",
+  "key.flowinventory.open_gui": "Open FlowInventory Settings",
+
+  "flowinventory.activity.mining": "Mining",
+  "flowinventory.activity.combat": "Combat",
+  "flowinventory.activity.building": "Building",
+  "flowinventory.activity.farming": "Farming",
+  "flowinventory.activity.general": "General",
+
+  "flowinventory.hud.activity": "Activity: %s",
+  "flowinventory.sort.success": "Inventory sorted ✓",
+  "flowinventory.profile.applied": "%s profile applied",
+  "flowinventory.profile.saved": "Hotbar saved as %s profile",
+
+  "flowinventory.config.title": "FlowInventory Settings",
+  "flowinventory.config.auto_detect": "Auto-detect activity",
+  "flowinventory.config.auto_detect.tooltip": "Automatically detect Mining/Combat/Building from what you hold and what's nearby",
+  "flowinventory.config.auto_apply": "Auto-apply profiles",
+  "flowinventory.config.auto_apply.tooltip": "Automatically swap hotbar when activity changes",
+  "flowinventory.config.show_hud": "Show activity HUD",
+  "flowinventory.config.sort_mode": "Sort mode",
+  "flowinventory.config.sort_mode.smart": "Smart (AI-based)",
+  "flowinventory.config.sort_mode.type": "By item type",
+  "flowinventory.config.sort_mode.alphabet": "Alphabetical"
+}
