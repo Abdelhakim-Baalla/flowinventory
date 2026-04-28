@@ -18,8 +18,9 @@ public class FlowConfig {
     public int combatDetectionRange = 8;
 
     // ── Sorting ───────────────────────────────────────────
-    public String sortMode = "SMART";
+    public String sortMode = "SMART"; // Options: "SMART", "ALPHABETICAL"
     public boolean mergeStacks = true;
+    public boolean lockHotbar = false;
 
     // ── HUD ───────────────────────────────────────────────
     public boolean showHudOverlay = true;

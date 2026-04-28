@@ -21,6 +21,9 @@
     ],
     "client": [
       "com.flowinventory.client.FlowInventoryClient"
+    ],
+    "modmenu": [
+      "com.flowinventory.client.FlowModMenuApi"
     ]
   },
   "mixins": [

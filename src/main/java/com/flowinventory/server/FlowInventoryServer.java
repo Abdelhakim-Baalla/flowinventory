@@ -22,9 +22,11 @@ public class FlowInventoryServer {
     private static void sortInventory(ServerPlayerEntity player) {
         PlayerInventory inventory = player.getInventory();
 
-        // Collect items from ALL inventory slots: hotbar (0-8) + main (9-35)
+        int startSlot = com.flowinventory.FlowInventoryMod.config.lockHotbar ? 9 : 0;
+
+        // Collect items from inventory slots
         List<ItemStack> items = new ArrayList<>();
-        for (int slot = 0; slot < 36; slot++) {
+        for (int slot = startSlot; slot < 36; slot++) {
             ItemStack stack = inventory.getStack(slot);
             if (!stack.isEmpty()) {
                 items.add(stack.copy());
@@ -37,17 +39,21 @@ public class FlowInventoryServer {
         // Merge same-type stacks
         items = mergeStacks(items);
 
-        // Sort by category then name
+        // Sort
+        boolean isAlphabetical = "ALPHABETICAL".equalsIgnoreCase(com.flowinventory.FlowInventoryMod.config.sortMode);
         items.sort((a, b) -> {
-            int catA = getCategoryOrder(a.getItem());
-            int catB = getCategoryOrder(b.getItem());
-            if (catA != catB) return catA - catB;
-            return a.getName().getString()
-                    .compareTo(b.getName().getString());
+            if (isAlphabetical) {
+                return a.getName().getString().compareToIgnoreCase(b.getName().getString());
+            } else {
+                int catA = getCategoryOrder(a.getItem());
+                int catB = getCategoryOrder(b.getItem());
+                if (catA != catB) return catA - catB;
+                return a.getName().getString().compareToIgnoreCase(b.getName().getString());
+            }
         });
 
-        // Write back to slots 0-35
-        int slot = 0;
+        // Write back to slots
+        int slot = startSlot;
         for (ItemStack stack : items) {
             if (slot < 36) {
                 inventory.setStack(slot++, stack);
