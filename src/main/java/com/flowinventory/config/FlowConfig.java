@@ -1,5 +1,14 @@
 package com.flowinventory.config;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import net.fabricmc.loader.api.FabricLoader;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.nio.file.Path;
+
 public class FlowConfig {
 
     // ── Activity Detection ────────────────────────────────
@@ -20,4 +29,47 @@ public class FlowConfig {
 
     // ── Pattern Learning ──────────────────────────────────
     public boolean enablePatternLearning = true;
+
+    // ── Persistence ───────────────────────────────────────
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
+    private static final Logger LOGGER = LoggerFactory.getLogger("flowinventory");
+    private static final String CONFIG_FILE = "flowinventory/config.json";
+
+    public static FlowConfig load() {
+        Path configPath = FabricLoader.getInstance()
+                .getConfigDir()
+                .resolve(CONFIG_FILE);
+
+        if (!configPath.toFile().exists()) {
+            LOGGER.info("[FlowInventory] No config found, creating defaults...");
+            FlowConfig defaults = new FlowConfig();
+            defaults.save();
+            return defaults;
+        }
+
+        try (Reader reader = new FileReader(configPath.toFile())) {
+            FlowConfig loaded = GSON.fromJson(reader, FlowConfig.class);
+            LOGGER.info("[FlowInventory] Config loaded successfully.");
+            return loaded != null ? loaded : new FlowConfig();
+        } catch (IOException e) {
+            LOGGER.error("[FlowInventory] Failed to load config!", e);
+            return new FlowConfig();
+        }
+    }
+
+    public void save() {
+        Path configDir = FabricLoader.getInstance()
+                .getConfigDir()
+                .resolve("flowinventory");
+
+        configDir.toFile().mkdirs();
+
+        Path configPath = configDir.resolve("config.json");
+
+        try (Writer writer = new FileWriter(configPath.toFile())) {
+            GSON.toJson(this, writer);
+        } catch (IOException e) {
+            LOGGER.error("[FlowInventory] Failed to save config!", e);
+        }
+    }
 }
