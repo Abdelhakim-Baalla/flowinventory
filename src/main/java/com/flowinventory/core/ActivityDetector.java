@@ -30,6 +30,12 @@ public class ActivityDetector {
 
     public void forceSetActivity(ActivityType activity) {
         currentActivity = activity;
+        detectedActivity = activity;
+        stabilityCounter = SWITCH_THRESHOLD;
+        // Reset history to new activity
+        for (int i = 0; i < HISTORY_SIZE; i++) {
+            history[i] = activity;
+        }
     }
 
     public void tick(PlayerEntity player) {
