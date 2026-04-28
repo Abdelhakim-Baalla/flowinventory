@@ -36,7 +36,7 @@ public class InventoryManager {
         if (items.isEmpty()) return;
 
         // Step 2: sort
-        List<ItemStack> sorted = sortByType(items);
+        List<ItemStack> sorted = sortByType(mergeStacks(items));
 
         // Step 3: write back
         int slotIndex = 9;
@@ -64,6 +64,41 @@ public class InventoryManager {
             return a.getName().getString().compareTo(b.getName().getString());
         });
         return sorted;
+    }
+
+    private List<ItemStack> mergeStacks(List<ItemStack> items) {
+        Map<String, ItemStack> merged = new LinkedHashMap<>();
+
+        for (ItemStack stack : items) {
+            if (stack.isEmpty()) continue;
+
+            String key = getStackKey(stack);
+
+            if (merged.containsKey(key)) {
+                ItemStack existing = merged.get(key);
+                int canAdd = existing.getMaxCount() - existing.getCount();
+                int toAdd = Math.min(canAdd, stack.getCount());
+                existing.increment(toAdd);
+
+                int leftover = stack.getCount() - toAdd;
+                if (leftover > 0) {
+                    ItemStack leftoverStack = stack.copy();
+                    leftoverStack.setCount(leftover);
+                    merged.put(key + "_" + System.nanoTime(), leftoverStack);
+                }
+            } else {
+                merged.put(key, stack.copy());
+            }
+        }
+
+        return new ArrayList<>(merged.values());
+    }
+
+    private String getStackKey(ItemStack stack) {
+        if (stack.hasNbt()) {
+            return stack.getItem().toString() + "_" + stack.getNbt().hashCode();
+        }
+        return stack.getItem().toString();
     }
 
     private int getCategoryOrder(Item item) {
