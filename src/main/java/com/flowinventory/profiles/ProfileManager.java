@@ -12,6 +12,8 @@ public class ProfileManager {
                 .add(0, "SWORD")
                 .add(1, "BOW")
                 .add(2, "SHIELD")
+                .add(3, "ENDER_PEARL")
+                .add(4, "POTION")
                 .add(8, "FOOD"));
 
         // MINING: Pickaxe, Shovel, Torches, Blocks, [gap], [gap], [gap], [gap], Food
@@ -19,7 +21,8 @@ public class ProfileManager {
                 .add(0, "PICKAXE")
                 .add(1, "SHOVEL")
                 .add(2, "TORCH")
-                .add(3, "BLOCK")
+                .add(3, "WATER_BUCKET")
+                .add(4, "BLOCK")
                 .add(8, "FOOD"));
 
         // BUILDING: Axe, Block, Block, Block, Block, [gap], [gap], [gap], Food

@@ -15,8 +15,8 @@ public class ActivityDetector {
 
     private ActivityType currentActivity = ActivityType.GENERAL;
 
-    private static final int HISTORY_SIZE = 10;
-    private static final int SWITCH_THRESHOLD = 5;
+    private static final int HISTORY_SIZE = 20;
+    private static final int SWITCH_THRESHOLD = 20;
 
     private ActivityType detectedActivity = ActivityType.GENERAL;
     private int stabilityCounter = 0;
@@ -54,6 +54,9 @@ public class ActivityDetector {
     public void tick(PlayerEntity player) {
         if (player == null) return;
         if (!FlowInventoryMod.config.autoDetectActivity) return;
+        
+        // Do not auto-switch if the player is looking at a GUI (chest, inventory, etc.)
+        if (net.minecraft.client.MinecraftClient.getInstance().currentScreen != null) return;
 
         ActivityType detected = analyzePlayer(player);
 
@@ -84,8 +87,9 @@ public class ActivityDetector {
     }
 
     private ActivityType analyzePlayer(PlayerEntity player) {
-        ItemStack heldItem = player.getMainHandStack();
-        Item item = heldItem.getItem();
+        ItemStack heldStack = player.getMainHandStack();
+        Item item = heldStack.getItem();
+        String itemId = Registries.ITEM.getId(item).toString();
 
         // ── Combat: mobs nearby ──────────────────────────────
         boolean mobsNearby = !player.getWorld()
@@ -97,82 +101,48 @@ public class ActivityDetector {
                         e -> !e.isDead()
                 ).isEmpty();
 
-        if (mobsNearby) return ActivityType.COMBAT;
+        if (mobsNearby) {
+            // If mobs are nearby and we hold a weapon OR even a tool, switch to Combat
+            if (item instanceof SwordItem || item instanceof AxeItem || item instanceof TridentItem || 
+                item instanceof BowItem || item instanceof CrossbowItem) {
+                return ActivityType.COMBAT;
+            }
+            return ActivityType.COMBAT; // Default to combat if mobs are very close
+        }
 
-        // ── Combat: holding weapon ───────────────────────────
+        // ── Specific Item Detection ──────────────────────────
+        
+        // Combat items
         if (item instanceof SwordItem) return ActivityType.COMBAT;
+        if (item instanceof BowItem || item instanceof CrossbowItem) return ActivityType.COMBAT;
+        if (item instanceof ShieldItem) return ActivityType.COMBAT;
         if (item instanceof TridentItem) return ActivityType.COMBAT;
-        if (item instanceof BowItem) return ActivityType.COMBAT;
-        if (item instanceof CrossbowItem) return ActivityType.COMBAT;
+        if (itemId.contains("ender_pearl") || itemId.contains("potion") || 
+            itemId.contains("golden_apple") || itemId.contains("totem")) return ActivityType.COMBAT;
+        if (item instanceof ArmorItem) return ActivityType.COMBAT;
 
-        // ── Mining: holding pickaxe or shovel ────────────────
+        // Mining tools
         if (item instanceof PickaxeItem) return ActivityType.MINING;
         if (item instanceof ShovelItem) return ActivityType.MINING;
+        if (itemId.contains("torch") || itemId.contains("lantern") || itemId.contains("ore")) return ActivityType.MINING;
+        if (itemId.contains("tnt") || itemId.contains("spyglass")) return ActivityType.MINING;
 
-        // ── Farming: holding farming tools ───────────────────
-        if (item instanceof HoeItem) return ActivityType.FARMING;
-        if (item instanceof ShearsItem) return ActivityType.FARMING;
+        // Farming tools & items
+        if (item instanceof HoeItem || item instanceof ShearsItem || item instanceof FishingRodItem) return ActivityType.FARMING;
+        if (itemId.contains("seed") || itemId.contains("wheat") || itemId.contains("carrot") || 
+            itemId.contains("potato") || itemId.contains("beetroot") || itemId.contains("sugar_cane")) return ActivityType.FARMING;
+        if (itemId.contains("sapling") || itemId.contains("bamboo") || itemId.contains("bone_meal") || 
+            itemId.contains("cocoa") || itemId.contains("mushroom") || itemId.contains("flower") || itemId.contains("egg")) return ActivityType.FARMING;
 
-        // ── Farming: holding farming items ───────────────────
-        String itemId = net.minecraft.registry.Registries.ITEM
-                .getId(item).toString();
-        if (itemId.contains("seed")) return ActivityType.FARMING;
-        if (itemId.contains("wheat")) return ActivityType.FARMING;
-        if (itemId.contains("carrot")) return ActivityType.FARMING;
-        if (itemId.contains("potato")) return ActivityType.FARMING;
-        if (itemId.contains("beetroot")) return ActivityType.FARMING;
-        if (itemId.contains("sugar_cane")) return ActivityType.FARMING;
-        if (itemId.contains("melon")) return ActivityType.FARMING;
-        if (itemId.contains("pumpkin")) return ActivityType.FARMING;
-        if (itemId.contains("bone_meal")) return ActivityType.FARMING;
-        
-        // ── Farming: all crop-related blocks ─────────────────
-        if (itemId.contains("sapling")) return ActivityType.FARMING;
-        if (itemId.contains("bamboo")) return ActivityType.FARMING;
-        if (itemId.contains("cocoa")) return ActivityType.FARMING;
-        if (itemId.contains("mushroom")) return ActivityType.FARMING;
-        if (itemId.contains("flower")) return ActivityType.FARMING;
-        if (itemId.contains("egg")) return ActivityType.FARMING;
-
-        // ── Mining: ores and mining items ─────────────────────
-        if (itemId.contains("ore")) return ActivityType.MINING;
-        if (itemId.contains("torch")) return ActivityType.MINING;
-        if (itemId.contains("tnt")) return ActivityType.MINING;
-        if (itemId.contains("chest")) return ActivityType.MINING;
-
-        // ── Combat: armor and potions ─────────────────────────
-        if (item instanceof ArmorItem) return ActivityType.COMBAT;
-        if (item instanceof ShieldItem) return ActivityType.COMBAT;
-        if (itemId.contains("potion")) return ActivityType.COMBAT;
-        if (itemId.contains("golden_apple")) return ActivityType.COMBAT;
-        if (itemId.contains("totem")) return ActivityType.COMBAT;
-
-        // ── Building: all building materials ──────────────────
-        if (itemId.contains("planks")) return ActivityType.BUILDING;
-        if (itemId.contains("stone")) return ActivityType.BUILDING;
-        if (itemId.contains("brick")) return ActivityType.BUILDING;
-        if (itemId.contains("glass")) return ActivityType.BUILDING;
-        if (itemId.contains("wool")) return ActivityType.BUILDING;
-        if (itemId.contains("concrete")) return ActivityType.BUILDING;
-        if (itemId.contains("terracotta")) return ActivityType.BUILDING;
-        if (itemId.contains("wood")) return ActivityType.BUILDING;
-        if (itemId.contains("log")) return ActivityType.BUILDING;
-        if (itemId.contains("slab")) return ActivityType.BUILDING;
-        if (itemId.contains("stair")) return ActivityType.BUILDING;
-        if (itemId.contains("fence")) return ActivityType.BUILDING;
-        if (itemId.contains("door")) return ActivityType.BUILDING;
-        if (itemId.contains("trapdoor")) return ActivityType.BUILDING;
-        if (itemId.contains("scaffold")) return ActivityType.BUILDING;
-        if (itemId.contains("ladder")) return ActivityType.BUILDING;
-        if (itemId.contains("carpet")) return ActivityType.BUILDING;
-        if (itemId.contains("bed")) return ActivityType.BUILDING;
-        if (itemId.contains("torch")) return ActivityType.BUILDING;
-
-        // ── Building: holding blocks ─────────────────────────
-        if (item instanceof BlockItem) return ActivityType.BUILDING;
-
-        // ── Axe: could be combat or building ─────────────────
-        if (item instanceof AxeItem) return ActivityType.BUILDING;
+        // Building materials
+        if (item instanceof BlockItem || item instanceof AxeItem) {
+            // Axe defaults to building if no mobs are nearby
+            return ActivityType.BUILDING;
+        }
+        if (itemId.contains("planks") || itemId.contains("stone") || itemId.contains("brick") || 
+            itemId.contains("slab") || itemId.contains("stair") || itemId.contains("fence") || 
+            itemId.contains("door") || itemId.contains("trapdoor") || itemId.contains("scaffold") || 
+            itemId.contains("ladder") || itemId.contains("carpet") || itemId.contains("bed")) return ActivityType.BUILDING;
 
         return ActivityType.GENERAL;
     }

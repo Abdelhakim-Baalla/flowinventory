@@ -30,34 +30,48 @@ public class HotbarSwapper {
             String desiredType = entry.getValue();
 
             ItemStack currentInTarget = inventory.getStack(targetSlot);
+            // Current score: add a massive bonus if the item is the one we are CURRENTLY holding!
             int currentScore = currentInTarget.isEmpty() ? -1 : evaluateItem(currentInTarget.getItem(), desiredType);
+            if (!currentInTarget.isEmpty() && ItemStack.canCombine(currentInTarget, originallyHeldItem)) {
+                if (currentScore > 0) currentScore += 1000;
+            }
 
             // Find the best item in the entire inventory (0-35) for this type, ignoring locked slots
-            int bestSlot = findBestItem(inventory, desiredType, lockedSlots);
+            int bestSlot = findBestItem(inventory, desiredType, lockedSlots, originallyHeldItem);
 
             if (bestSlot != -1) {
                 int bestScore = evaluateItem(inventory.getStack(bestSlot).getItem(), desiredType);
+                // If the item in bestSlot is the held item, give it the same bonus
+                if (ItemStack.canCombine(inventory.getStack(bestSlot), originallyHeldItem)) {
+                    if (bestScore > 0) bestScore += 1000;
+                }
+
                 if (bestScore > currentScore && bestSlot != targetSlot) {
                     // We found a better item for this slot
                     ItemStack newStack = inventory.getStack(bestSlot);
 
-                    // Swap them
-                    inventory.setStack(targetSlot, newStack);
-                    inventory.setStack(bestSlot, currentInTarget);
+                    // Before we just swap, if currentInTarget is NOT empty, try to move it to an EMPTY hotbar slot first
+                    // instead of pushing it back to where the newStack came from (which might be the main inventory).
+                    if (!currentInTarget.isEmpty()) {
+                        int emptyHotbarSlot = getEmptyHotbarSlot(inventory, lockedSlots, preset.slots.keySet());
+                        if (emptyHotbarSlot != -1) {
+                            inventory.setStack(emptyHotbarSlot, currentInTarget);
+                            inventory.setStack(targetSlot, newStack);
+                            inventory.setStack(bestSlot, ItemStack.EMPTY);
+                        } else {
+                            // Standard swap
+                            inventory.setStack(targetSlot, newStack);
+                            inventory.setStack(bestSlot, currentInTarget);
+                        }
+                    } else {
+                        // Empty slot, just fill it
+                        inventory.setStack(targetSlot, newStack);
+                        inventory.setStack(bestSlot, ItemStack.EMPTY);
+                    }
                     lockedSlots.add(targetSlot);
                 } else if (currentScore > 0) {
                     // The item currently here is already optimal (or tied for optimal), lock it
                     lockedSlots.add(targetSlot);
-                }
-            } else {
-                // We did not find anything to put here.
-                // If the current item doesn't fit the preset AT ALL (score <= 0), clear it out!
-                if (currentScore <= 0 && !currentInTarget.isEmpty()) {
-                    int emptySlot = getEmptyMainSlot(inventory);
-                    if (emptySlot != -1) {
-                        inventory.setStack(emptySlot, currentInTarget);
-                        inventory.setStack(targetSlot, ItemStack.EMPTY);
-                    }
                 }
             }
         }
@@ -94,7 +108,7 @@ public class HotbarSwapper {
         player.playerScreenHandler.syncState();
     }
 
-    private static int findBestItem(PlayerInventory inventory, String type, Set<Integer> lockedSlots) {
+    private static int findBestItem(PlayerInventory inventory, String type, Set<Integer> lockedSlots, ItemStack heldItem) {
         int bestSlot = -1;
         int bestScore = -1;
 
@@ -105,6 +119,10 @@ public class HotbarSwapper {
             if (stack.isEmpty()) continue;
 
             int score = evaluateItem(stack.getItem(), type);
+            if (score > 0 && ItemStack.canCombine(stack, heldItem)) {
+                score += 1000; // Prioritize held item
+            }
+
             if (score > bestScore) {
                 bestScore = score;
                 bestSlot = i;
@@ -112,6 +130,15 @@ public class HotbarSwapper {
         }
 
         return bestSlot;
+    }
+
+    private static int getEmptyHotbarSlot(PlayerInventory inventory, Set<Integer> lockedSlots, Set<Integer> presetSlots) {
+        for (int i = 0; i < 9; i++) {
+            if (inventory.getStack(i).isEmpty() && !lockedSlots.contains(i) && !presetSlots.contains(i)) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     private static int evaluateItem(Item item, String type) {
@@ -162,11 +189,20 @@ public class HotbarSwapper {
             case "SEEDS":
                 if (item instanceof AliasedBlockItem) return 100; // Carrots/Potatoes
                 if (id.contains("seeds")) return 90;
+                if (id.contains("sugar_cane")) return 80;
                 if (item instanceof BoneMealItem) return 50; // Bone meal as farming backup
                 break;
             case "WATER_BUCKET":
                 if (id.equals("minecraft:water_bucket")) return 100;
                 if (item instanceof BucketItem) return 50; // Empty bucket as backup
+                break;
+            case "ENDER_PEARL":
+                if (id.contains("ender_pearl")) return 100;
+                if (id.contains("chorus_fruit")) return 50; // Backup teleport
+                break;
+            case "POTION":
+                if (item instanceof PotionItem) return 100;
+                if (item instanceof ExperienceBottleItem) return 50; // Backup utility
                 break;
         }
         return -1;
