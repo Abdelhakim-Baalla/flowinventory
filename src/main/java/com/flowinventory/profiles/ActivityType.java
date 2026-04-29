@@ -6,6 +6,12 @@ public enum ActivityType {
     COMBAT("Combat", "⚔"),
     BUILDING("Building", "🧱"),
     FARMING("Farming", "🌾"),
+    FISHING("Fishing", "🎣"),
+    EXPLORING("Exploring", "🧭"),
+    REDSTONE("Redstone", "🔌"),
+    BREWING("Brewing", "🧪"),
+    ARCHERY("Archery", "🏹"),
+    RIDING("Riding", "🏇"),
     GENERAL("General", "🎒");
 
     public final String displayName;

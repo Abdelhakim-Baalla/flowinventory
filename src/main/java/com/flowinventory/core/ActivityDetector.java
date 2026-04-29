@@ -10,22 +10,22 @@ import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.networking.v1.PacketByteBufs;
 import com.flowinventory.network.ActivityChangePacket;
 import net.minecraft.network.PacketByteBuf;
+import java.util.HashMap;
+import java.util.Map;
+import net.minecraft.registry.tag.ItemTags;
 
 public class ActivityDetector {
 
     private ActivityType currentActivity = ActivityType.GENERAL;
 
-    private static final int HISTORY_SIZE = 20;
-    private static final int SWITCH_THRESHOLD = 20;
-
-    private ActivityType detectedActivity = ActivityType.GENERAL;
-    private int stabilityCounter = 0;
-    private final ActivityType[] history = new ActivityType[HISTORY_SIZE];
-    private int historyIndex = 0;
+    private int manualOverrideCooldown = 0;
+    private final Map<ActivityType, Integer> activityWeights = new HashMap<>();
+    private static final int MOMENTUM_MAX = 100;
+    private static final int MOMENTUM_SWITCH_THRESHOLD = 60;
 
     public ActivityDetector() {
-        for (int i = 0; i < HISTORY_SIZE; i++) {
-            history[i] = ActivityType.GENERAL;
+        for (ActivityType type : ActivityType.values()) {
+            activityWeights.put(type, 0);
         }
     }
 
@@ -37,11 +37,12 @@ public class ActivityDetector {
         if (currentActivity == activity) return;
         
         currentActivity = activity;
-        detectedActivity = activity;
-        stabilityCounter = SWITCH_THRESHOLD;
-        // Reset history to new activity
-        for (int i = 0; i < HISTORY_SIZE; i++) {
-            history[i] = activity;
+        manualOverrideCooldown = 100;
+
+        // Boost new activity weight
+        activityWeights.put(activity, MOMENTUM_MAX);
+        for (ActivityType type : ActivityType.values()) {
+            if (type != activity) activityWeights.put(type, 0);
         }
 
         if (FlowInventoryMod.config.autoApplyProfile) {
@@ -49,6 +50,9 @@ public class ActivityDetector {
             buf.writeString(currentActivity.name());
             ClientPlayNetworking.send(ActivityChangePacket.ID, buf);
         }
+
+        // Lock in manual mode for 5 seconds (100 ticks)
+        manualOverrideCooldown = 100;
     }
 
     public void tick(PlayerEntity player) {
@@ -58,32 +62,54 @@ public class ActivityDetector {
         // Do not auto-switch if the player is looking at a GUI (chest, inventory, etc.)
         if (net.minecraft.client.MinecraftClient.getInstance().currentScreen != null) return;
 
-        ActivityType detected = analyzePlayer(player);
-
-        history[historyIndex % HISTORY_SIZE] = detected;
-        historyIndex++;
-
-        ActivityType dominant = getDominantActivity();
-
-        if (dominant == detectedActivity) {
-            stabilityCounter++;
-            if (stabilityCounter >= SWITCH_THRESHOLD && dominant != currentActivity) {
-                currentActivity = dominant;
-                FlowInventoryMod.LOGGER.debug(
-                        "[FlowInventory] Activity changed to: {}",
-                        currentActivity.displayName
-                );
-
-                if (FlowInventoryMod.config.autoApplyProfile) {
-                    PacketByteBuf buf = PacketByteBufs.create();
-                    buf.writeString(currentActivity.name());
-                    ClientPlayNetworking.send(ActivityChangePacket.ID, buf);
-                }
-            }
-        } else {
-            detectedActivity = dominant;
-            stabilityCounter = 0;
+        if (manualOverrideCooldown > 0) {
+            manualOverrideCooldown--;
+            return;
         }
+
+        ActivityType detected = analyzePlayer(player);
+        updateWeights(detected);
+
+        ActivityType dominant = getStrongestActivity();
+
+        if (dominant != currentActivity && activityWeights.getOrDefault(dominant, 0) >= MOMENTUM_SWITCH_THRESHOLD) {
+            currentActivity = dominant;
+            FlowInventoryMod.LOGGER.debug(
+                    "[FlowInventory] Activity changed to: {}",
+                    currentActivity.displayName
+            );
+
+            if (FlowInventoryMod.config.autoApplyProfile) {
+                PacketByteBuf buf = PacketByteBufs.create();
+                buf.writeString(currentActivity.name());
+                ClientPlayNetworking.send(ActivityChangePacket.ID, buf);
+            }
+        }
+    }
+
+    private void updateWeights(ActivityType detected) {
+        // Decay other weights
+        for (ActivityType type : ActivityType.values()) {
+            int currentWeight = activityWeights.getOrDefault(type, 0);
+            if (type == detected) {
+                activityWeights.put(type, Math.min(MOMENTUM_MAX, currentWeight + 10));
+            } else {
+                activityWeights.put(type, Math.max(0, currentWeight - 5));
+            }
+        }
+    }
+
+    private ActivityType getStrongestActivity() {
+        ActivityType strongest = currentActivity;
+        int maxWeight = activityWeights.getOrDefault(currentActivity, 0);
+
+        for (Map.Entry<ActivityType, Integer> entry : activityWeights.entrySet()) {
+            if (entry.getValue() > maxWeight) {
+                maxWeight = entry.getValue();
+                strongest = entry.getKey();
+            }
+        }
+        return strongest;
     }
 
     private ActivityType analyzePlayer(PlayerEntity player) {
@@ -110,11 +136,20 @@ public class ActivityDetector {
             return ActivityType.COMBAT; // Default to combat if mobs are very close
         }
 
-        // ── Specific Item Detection ──────────────────────────
-        
+        // ── Archery: holding bows/crossbows ──────────────────
+        if (item instanceof BowItem || item instanceof CrossbowItem || heldStack.isIn(ItemTags.ARROWS)) {
+            return ActivityType.ARCHERY;
+        }
+
+        // ── Riding: holding saddles/leads/elytra ──────────────
+        if (item instanceof SaddleItem || itemId.equals("minecraft:elytra") || itemId.equals("minecraft:lead") || 
+            itemId.contains("horse_armor") || itemId.contains("firework_rocket") || 
+            itemId.equals("minecraft:carrot_on_a_stick") || itemId.equals("minecraft:warped_fungus_on_a_stick")) {
+            return ActivityType.RIDING;
+        }
+
         // Combat items
         if (item instanceof SwordItem) return ActivityType.COMBAT;
-        if (item instanceof BowItem || item instanceof CrossbowItem) return ActivityType.COMBAT;
         if (item instanceof ShieldItem) return ActivityType.COMBAT;
         if (item instanceof TridentItem) return ActivityType.COMBAT;
         if (itemId.contains("ender_pearl") || itemId.contains("potion") || 
@@ -127,43 +162,40 @@ public class ActivityDetector {
         if (itemId.contains("torch") || itemId.contains("lantern") || itemId.contains("ore")) return ActivityType.MINING;
         if (itemId.contains("tnt") || itemId.contains("spyglass")) return ActivityType.MINING;
 
+        // Fishing & Exploration
+        if (item instanceof FishingRodItem) return ActivityType.FISHING;
+        if (itemId.contains("compass") || itemId.contains("clock") || itemId.contains("map")) return ActivityType.EXPLORING;
+
         // Farming tools & items
-        if (item instanceof HoeItem || item instanceof ShearsItem || item instanceof FishingRodItem) return ActivityType.FARMING;
-        if (itemId.contains("seed") || itemId.contains("wheat") || itemId.contains("carrot") || 
+        if (item instanceof HoeItem || item instanceof ShearsItem) return ActivityType.FARMING;
+        if (heldStack.isIn(ItemTags.VILLAGER_PLANTABLE_SEEDS) || itemId.contains("seed") || itemId.contains("wheat") || itemId.contains("carrot") || 
             itemId.contains("potato") || itemId.contains("beetroot") || itemId.contains("sugar_cane")) return ActivityType.FARMING;
-        if (itemId.contains("sapling") || itemId.contains("bamboo") || itemId.contains("bone_meal") || 
-            itemId.contains("cocoa") || itemId.contains("mushroom") || itemId.contains("flower") || itemId.contains("egg")) return ActivityType.FARMING;
+        if (heldStack.isIn(ItemTags.SAPLINGS) || heldStack.isIn(ItemTags.LEAVES) || heldStack.isIn(ItemTags.FLOWERS) || 
+            itemId.contains("bamboo") || itemId.contains("bone_meal") || itemId.contains("cocoa") || 
+            itemId.contains("mushroom") || itemId.contains("egg")) return ActivityType.FARMING;
 
         // Building materials
         if (item instanceof BlockItem || item instanceof AxeItem) {
             // Axe defaults to building if no mobs are nearby
             return ActivityType.BUILDING;
         }
-        if (itemId.contains("planks") || itemId.contains("stone") || itemId.contains("brick") || 
-            itemId.contains("slab") || itemId.contains("stair") || itemId.contains("fence") || 
-            itemId.contains("door") || itemId.contains("trapdoor") || itemId.contains("scaffold") || 
-            itemId.contains("ladder") || itemId.contains("carpet") || itemId.contains("bed")) return ActivityType.BUILDING;
+        if (heldStack.isIn(ItemTags.LOGS) || heldStack.isIn(ItemTags.PLANKS) || heldStack.isIn(ItemTags.DOORS) || 
+            heldStack.isIn(ItemTags.SIGNS) || heldStack.isIn(ItemTags.BEDS) || heldStack.isIn(ItemTags.STAIRS) || 
+            heldStack.isIn(ItemTags.SLABS) || heldStack.isIn(ItemTags.WALLS) || heldStack.isIn(ItemTags.FENCES) || 
+            itemId.contains("stone") || itemId.contains("brick") || itemId.contains("scaffold") || 
+            itemId.contains("ladder") || itemId.contains("carpet")) return ActivityType.BUILDING;
+
+        // ── Redstone: holding wires or components ────────────
+        if (itemId.contains("redstone") || itemId.contains("repeater") || 
+            itemId.contains("comparator") || itemId.contains("piston") || 
+            itemId.contains("observer") || itemId.contains("lever") || 
+            itemId.contains("pressure_plate") || itemId.contains("button")) return ActivityType.REDSTONE;
+
+        // ── Brewing: holding bottles or ingredients ─────────
+        if (itemId.contains("glass_bottle") || itemId.contains("blaze_powder") || 
+            itemId.contains("nether_wart") || itemId.contains("ghast_tear") || 
+            itemId.contains("magma_cream") || itemId.contains("fermented_spider_eye")) return ActivityType.BREWING;
 
         return ActivityType.GENERAL;
-    }
-
-    private ActivityType getDominantActivity() {
-        int[] counts = new int[ActivityType.values().length];
-
-        for (ActivityType a : history) {
-            counts[a.ordinal()]++;
-        }
-
-        ActivityType dominant = ActivityType.GENERAL;
-        int maxCount = 0;
-
-        for (ActivityType a : ActivityType.values()) {
-            if (counts[a.ordinal()] > maxCount) {
-                maxCount = counts[a.ordinal()];
-                dominant = a;
-            }
-        }
-
-        return dominant;
     }
 }

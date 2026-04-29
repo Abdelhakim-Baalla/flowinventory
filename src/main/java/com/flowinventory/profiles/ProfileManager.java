@@ -41,6 +41,46 @@ public class ProfileManager {
                 .add(2, "WATER_BUCKET")
                 .add(8, "FOOD"));
 
+        // FISHING: Fishing Rod, [gap], [gap], [gap], [gap], [gap], [gap], [gap], Food
+        PRESETS.put(ActivityType.FISHING, new HotbarPreset()
+                .add(0, "FISHING_ROD")
+                .add(8, "FOOD"));
+
+        // EXPLORING: Compass/Clock, Map, Spyglass, [gap], [gap], [gap], [gap], [gap], Food
+        PRESETS.put(ActivityType.EXPLORING, new HotbarPreset()
+                .add(0, "EXPLORATION")
+                .add(1, "EXPLORATION")
+                .add(2, "EXPLORATION")
+                .add(8, "FOOD"));
+
+        // REDSTONE: Redstone, Repeater, Comparator, Piston, Lever, [gap], [gap], [gap], Food
+        PRESETS.put(ActivityType.REDSTONE, new HotbarPreset()
+                .add(0, "REDSTONE")
+                .add(1, "REDSTONE")
+                .add(2, "REDSTONE")
+                .add(3, "REDSTONE")
+                .add(4, "REDSTONE")
+                .add(8, "FOOD"));
+
+        // BREWING: Glass Bottle, Ingredient, [gap], [gap], [gap], [gap], [gap], [gap], Food
+        PRESETS.put(ActivityType.BREWING, new HotbarPreset()
+                .add(0, "BREWING")
+                .add(1, "BREWING")
+                .add(8, "FOOD"));
+
+        // ARCHERY: Bow, Ender Pearl, Shield, [gap], [gap], [gap], [gap], [gap], Food
+        PRESETS.put(ActivityType.ARCHERY, new HotbarPreset()
+                .add(0, "BOW")
+                .add(1, "ENDER_PEARL")
+                .add(2, "SHIELD")
+                .add(8, "FOOD"));
+
+        // RIDING: Saddle/Elytra/Rocket, Lead, [gap], [gap], [gap], [gap], [gap], [gap], Food
+        PRESETS.put(ActivityType.RIDING, new HotbarPreset()
+                .add(0, "RIDING")
+                .add(1, "RIDING")
+                .add(8, "FOOD"));
+
         // GENERAL: Sword, Pickaxe, Axe, [gap], [gap], [gap], [gap], [gap], Food
         PRESETS.put(ActivityType.GENERAL, new HotbarPreset()
                 .add(0, "SWORD")

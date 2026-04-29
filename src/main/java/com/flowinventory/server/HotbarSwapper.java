@@ -31,7 +31,7 @@ public class HotbarSwapper {
 
             ItemStack currentInTarget = inventory.getStack(targetSlot);
             // Current score: add a massive bonus if the item is the one we are CURRENTLY holding!
-            int currentScore = currentInTarget.isEmpty() ? -1 : evaluateItem(currentInTarget.getItem(), desiredType);
+            int currentScore = currentInTarget.isEmpty() ? -1 : ItemHeuristics.evaluate(currentInTarget, desiredType);
             if (!currentInTarget.isEmpty() && ItemStack.canCombine(currentInTarget, originallyHeldItem)) {
                 if (currentScore > 0) currentScore += 1000;
             }
@@ -40,7 +40,7 @@ public class HotbarSwapper {
             int bestSlot = findBestItem(inventory, desiredType, lockedSlots, originallyHeldItem);
 
             if (bestSlot != -1) {
-                int bestScore = evaluateItem(inventory.getStack(bestSlot).getItem(), desiredType);
+                int bestScore = ItemHeuristics.evaluate(inventory.getStack(bestSlot), desiredType);
                 // If the item in bestSlot is the held item, give it the same bonus
                 if (ItemStack.canCombine(inventory.getStack(bestSlot), originallyHeldItem)) {
                     if (bestScore > 0) bestScore += 1000;
@@ -76,32 +76,12 @@ public class HotbarSwapper {
             }
         }
 
-        // AI Intelligence: If the item the player was holding was moved to a different hotbar slot,
-        // automatically change their selected slot to follow the item!
-        if (!originallyHeldItem.isEmpty()) {
-            boolean found = false;
-            for (int i = 0; i < 9; i++) {
-                if (ItemStack.canCombine(inventory.getStack(i), originallyHeldItem)) {
-                    if (i != originalSelectedSlot) {
-                        inventory.selectedSlot = i;
-                        player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket(i));
-                    }
-                    found = true;
-                    break;
-                }
-            }
-            // If the item was pushed entirely out of the hotbar (to slots 9-35),
-            // smartly switch them to slot 0 (the primary tool for the new activity).
-            if (!found && newActivity != ActivityType.GENERAL) {
-                inventory.selectedSlot = 0;
-                player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket(0));
-            }
-        } else {
-            // If they were holding an empty hand, and we moved to a specific activity, select slot 0
-            if (newActivity != ActivityType.GENERAL) {
-                inventory.selectedSlot = 0;
-                player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket(0));
-            }
+        // AI Intelligence: When switching to a specific activity, ALWAYS select Slot 0 (the primary tool).
+        // This ensures that pressing 'G' immediately equips the right tool instead of leaving you holding
+        // whatever item you had in your hand before.
+        if (newActivity != ActivityType.GENERAL) {
+            inventory.selectedSlot = 0;
+            player.networkHandler.sendPacket(new net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket(0));
         }
 
         // Sync with client
@@ -118,7 +98,7 @@ public class HotbarSwapper {
             ItemStack stack = inventory.getStack(i);
             if (stack.isEmpty()) continue;
 
-            int score = evaluateItem(stack.getItem(), type);
+            int score = ItemHeuristics.evaluate(stack, type);
             if (score > 0 && ItemStack.canCombine(stack, heldItem)) {
                 score += 1000; // Prioritize held item
             }
@@ -137,73 +117,6 @@ public class HotbarSwapper {
             if (inventory.getStack(i).isEmpty() && !lockedSlots.contains(i) && !presetSlots.contains(i)) {
                 return i;
             }
-        }
-        return -1;
-    }
-
-    private static int evaluateItem(Item item, String type) {
-        String id = net.minecraft.registry.Registries.ITEM.getId(item).toString();
-        switch (type) {
-            case "SWORD":
-                if (item instanceof SwordItem) return 100 + ((SwordItem)item).getMaterial().getMiningLevel() * 10;
-                if (item instanceof AxeItem) return 50 + ((AxeItem)item).getMaterial().getMiningLevel() * 10;
-                if (item instanceof TridentItem) return 40;
-                break;
-            case "PICKAXE":
-                if (item instanceof PickaxeItem) return 100 + ((PickaxeItem)item).getMaterial().getMiningLevel() * 10;
-                break;
-            case "AXE":
-                if (item instanceof AxeItem) return 100 + ((AxeItem)item).getMaterial().getMiningLevel() * 10;
-                break;
-            case "SHOVEL":
-                if (item instanceof ShovelItem) return 100 + ((ShovelItem)item).getMaterial().getMiningLevel() * 10;
-                break;
-            case "HOE":
-                if (item instanceof HoeItem) return 100 + ((HoeItem)item).getMaterial().getMiningLevel() * 10;
-                break;
-            case "BOW":
-                if (item instanceof BowItem) return 100;
-                if (item instanceof CrossbowItem) return 90;
-                if (item instanceof TridentItem) return 80;
-                if (item instanceof SnowballItem || item instanceof EggItem || item instanceof EnderPearlItem) return 50;
-                break;
-            case "SHIELD":
-                if (item instanceof ShieldItem) return 100;
-                break;
-            case "FOOD":
-                if (item.getFoodComponent() != null) {
-                    return item.getFoodComponent().getHunger() * 10;
-                }
-                if (item instanceof PotionItem) return 10; // Potions as fallback
-                break;
-            case "BLOCK":
-                if (item instanceof BlockItem) {
-                    // Prefer full solid blocks for building
-                    if (!id.contains("slab") && !id.contains("stairs") && !id.contains("wall")) return 100;
-                    return 50;
-                }
-                break;
-            case "TORCH":
-                if (id.contains("torch") || id.contains("lantern") || id.contains("glowstone")) return 100;
-                break;
-            case "SEEDS":
-                if (item instanceof AliasedBlockItem) return 100; // Carrots/Potatoes
-                if (id.contains("seeds")) return 90;
-                if (id.contains("sugar_cane")) return 80;
-                if (item instanceof BoneMealItem) return 50; // Bone meal as farming backup
-                break;
-            case "WATER_BUCKET":
-                if (id.equals("minecraft:water_bucket")) return 100;
-                if (item instanceof BucketItem) return 50; // Empty bucket as backup
-                break;
-            case "ENDER_PEARL":
-                if (id.contains("ender_pearl")) return 100;
-                if (id.contains("chorus_fruit")) return 50; // Backup teleport
-                break;
-            case "POTION":
-                if (item instanceof PotionItem) return 100;
-                if (item instanceof ExperienceBottleItem) return 50; // Backup utility
-                break;
         }
         return -1;
     }
