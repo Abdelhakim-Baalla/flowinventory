@@ -73,11 +73,7 @@ public final class InventoryScanner {
             case GENERAL:
             case UNKNOWN:
             case IDLE:
-            case AFK:
             case SLEEPING:
-            case OVERWORLD:
-            case NETHER:
-            case END:
                 return true;
             default:
                 break;

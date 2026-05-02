@@ -193,7 +193,7 @@ public class ActivityDetector {
 
         // 10. Boost the current activity slightly to reduce flapping
         if (currentActivity != ActivityType.GENERAL && currentActivity != ActivityType.UNKNOWN) {
-            activityWeights.merge(currentActivity, 8, Integer::sum);
+            activityWeights.merge(currentActivity, 12, Integer::sum);
         }
 
         // 11. Emergency check FIRST — bypasses every other rule, including
@@ -377,23 +377,23 @@ public class ActivityDetector {
         if (path.contains("pickaxe")) {
             bump(ActivityType.MINING, 60);
         } else if (path.contains("axe") && !path.contains("pickaxe")) {
-            bump(ActivityType.WOODWORKING, 60);
+            bump(ActivityType.BUILDING, 60);
         } else if (path.contains("shovel")) {
-            bump(ActivityType.DIRT, 60);
+            bump(ActivityType.MINING, 60);
         } else if (path.contains("hoe")) {
             bump(ActivityType.FARMING, 60);
         } else if (path.contains("sword")) {
-            bump(ActivityType.SWORD_COMBAT, 60);
+            bump(ActivityType.COMBAT, 60);
         } else if (path.contains("bow") && !path.contains("crossbow")) {
-            bump(ActivityType.ARCHERY, 60);
+            bump(ActivityType.COMBAT, 60);
         } else if (path.contains("crossbow")) {
-            bump(ActivityType.CROSSBOW_COMBAT, 60);
+            bump(ActivityType.COMBAT, 60);
         } else if (path.contains("trident")) {
-            bump(ActivityType.TRIDENT_COMBAT, 60);
+            bump(ActivityType.COMBAT, 60);
         } else if (path.contains("fishing_rod")) {
-            bump(ActivityType.FISHING, 60);
+            bump(ActivityType.FARMING, 60);
         } else if (path.contains("shears")) {
-            bump(ActivityType.SHEEP_FARMING, 60);
+            bump(ActivityType.FARMING, 60);
         }
     }
 
@@ -462,249 +462,249 @@ public class ActivityDetector {
 
         // ── Weapons (use word-boundary checks to avoid AXE-in-WAXED etc.) ──
         if (hasWord(upper, "SWORD") || upper.endsWith("_SWORD")) {
-            bump(ActivityType.SWORD_COMBAT, 22 * weight);
+            bump(ActivityType.COMBAT, 22 * weight);
             bump(ActivityType.COMBAT, 6 * weight);
         }
         boolean isAxe = upper.endsWith("_AXE") && !upper.endsWith("_PICKAXE");
         if (isAxe) {
-            bump(ActivityType.AXE_COMBAT, 14 * weight);
-            bump(ActivityType.WOODWORKING, 10 * weight);
-            bump(ActivityType.TREE_FARMING, 9 * weight);
+            bump(ActivityType.COMBAT, 14 * weight);
+            bump(ActivityType.BUILDING, 10 * weight);
+            bump(ActivityType.FARMING, 9 * weight);
         }
-        if (hasWord(upper, "TRIDENT")) bump(ActivityType.TRIDENT_COMBAT, 25 * weight);
-        if (hasWord(upper, "MACE") || hasWord(upper, "HEAVY_CORE")) bump(ActivityType.MACE, 25 * weight);
+        if (hasWord(upper, "TRIDENT")) bump(ActivityType.COMBAT, 25 * weight);
+        if (hasWord(upper, "MACE") || hasWord(upper, "HEAVY_CORE")) bump(ActivityType.COMBAT, 25 * weight);
         // BOW = exact "bow" or anything ending "_bow" but never "_crossbow"
         boolean isBow = (upper.equals("BOW") || (upper.endsWith("_BOW") && !upper.endsWith("_CROSSBOW")));
         if (isBow) {
-            bump(ActivityType.ARCHERY, 22 * weight);
-            bump(ActivityType.SNIPER, 8 * weight);
+            bump(ActivityType.COMBAT, 22 * weight);
+            bump(ActivityType.COMBAT, 8 * weight);
         }
         if (upper.equals("CROSSBOW") || upper.endsWith("_CROSSBOW")) {
-            bump(ActivityType.CROSSBOW_COMBAT, 22 * weight);
-            bump(ActivityType.RAID, 6 * weight);
+            bump(ActivityType.COMBAT, 22 * weight);
+            bump(ActivityType.COMBAT, 6 * weight);
         }
         if (upper.equals("ARROW") || hasWord(upper, "ARROW")
                 || upper.equals("TIPPED_ARROW") || upper.equals("SPECTRAL_ARROW")) {
-            bump(ActivityType.ARCHERY, 6 * weight);
+            bump(ActivityType.COMBAT, 6 * weight);
         }
         if (hasWord(upper, "SHIELD")) {
-            bump(ActivityType.DEFENSIVE, 14 * weight);
+            bump(ActivityType.COMBAT, 14 * weight);
             bump(ActivityType.COMBAT, 6 * weight);
         }
         if (upper.equals("TNT") || upper.contains("TNT_MINECART") || upper.contains("FIRE_CHARGE")) {
-            bump(ActivityType.EXPLOSIVES, 22 * weight);
+            bump(ActivityType.COMBAT, 22 * weight);
         }
         if (upper.equals("WIND_CHARGE") || upper.contains("BREEZE")) {
-            bump(ActivityType.BREEZE, 18 * weight);
+            bump(ActivityType.COMBAT, 18 * weight);
         }
-        if (upper.contains("SPLASH_POTION")) bump(ActivityType.POTION_COMBAT, 16 * weight);
-        if (upper.contains("LINGERING_POTION")) bump(ActivityType.POTION_COMBAT, 18 * weight);
-        if (upper.equals("POTION")) bump(ActivityType.HEALING, 10 * weight);
-        if (upper.equals("TOTEM_OF_UNDYING")) bump(ActivityType.DEFENSIVE, 18 * weight);
+        if (upper.contains("SPLASH_POTION")) bump(ActivityType.COMBAT, 16 * weight);
+        if (upper.contains("LINGERING_POTION")) bump(ActivityType.COMBAT, 18 * weight);
+        if (upper.equals("POTION")) bump(ActivityType.FOOD, 10 * weight);
+        if (upper.equals("TOTEM_OF_UNDYING")) bump(ActivityType.COMBAT, 18 * weight);
 
         if (upper.endsWith("_PICKAXE")) {
             bump(ActivityType.MINING, 22 * weight);
-            bump(ActivityType.STONEMASONRY, 6 * weight);
+            bump(ActivityType.BUILDING, 6 * weight);
         }
         if (upper.endsWith("_SHOVEL")) {
-            bump(ActivityType.DIRT, 14 * weight);
-            bump(ActivityType.SAND, 12 * weight);
-            bump(ActivityType.GRAVEL, 10 * weight);
+            bump(ActivityType.MINING, 14 * weight);
+            bump(ActivityType.MINING, 12 * weight);
+            bump(ActivityType.MINING, 10 * weight);
         }
         if (upper.endsWith("_HOE")) {
             bump(ActivityType.FARMING, 18 * weight);
-            bump(ActivityType.CROP_FARMING, 14 * weight);
+            bump(ActivityType.FARMING, 14 * weight);
         }
         if (upper.equals("SHEARS")) {
-            bump(ActivityType.SHEEP_FARMING, 14 * weight);
+            bump(ActivityType.FARMING, 14 * weight);
             bump(ActivityType.FARMING, 6 * weight);
         }
         if (upper.equals("FISHING_ROD") || upper.endsWith("_FISHING_ROD")) {
-            bump(ActivityType.FISHING, 26 * weight);
-            bump(ActivityType.OCEAN_FISHING, 8 * weight);
+            bump(ActivityType.FARMING, 26 * weight);
+            bump(ActivityType.FARMING, 8 * weight);
         }
         if (upper.equals("CARROT_ON_A_STICK")) {
-            bump(ActivityType.PIG_RIDING, 18 * weight);
+            bump(ActivityType.TRAVEL, 18 * weight);
         }
         if (upper.equals("WARPED_FUNGUS_ON_A_STICK")) {
-            bump(ActivityType.STRIDER_RIDING, 18 * weight);
+            bump(ActivityType.TRAVEL, 18 * weight);
         }
         if (upper.equals("FLINT_AND_STEEL")) {
-            bump(ActivityType.LIGHTING, 12 * weight);
-            bump(ActivityType.NETHER, 6 * weight);
+            bump(ActivityType.UTILITY, 12 * weight);
+            bump(ActivityType.EXPLORATION, 6 * weight);
         }
 
         if (item instanceof net.minecraft.item.BlockItem) {
             bump(ActivityType.BUILDING, 8 * weight);
             if (upper.contains("PLANK") || upper.contains("LOG") || upper.contains("WOOD")
                     || upper.endsWith("_STEM") || upper.contains("HYPHAE")) {
-                bump(ActivityType.WOODWORKING, 14 * weight);
+                bump(ActivityType.BUILDING, 14 * weight);
             }
             if (upper.contains("STONE") || upper.contains("BRICK") || upper.contains("COBBLESTONE")
                     || upper.contains("DEEPSLATE") || upper.contains("BLACKSTONE")
                     || upper.contains("ANDESITE") || upper.contains("DIORITE") || upper.contains("GRANITE")
                     || upper.contains("TUFF") || upper.contains("CALCITE") || upper.contains("BASALT")) {
-                bump(ActivityType.STONEMASONRY, 12 * weight);
+                bump(ActivityType.BUILDING, 12 * weight);
             }
-            if (upper.contains("TERRACOTTA")) bump(ActivityType.TERRACOTTA, 14 * weight);
-            if (upper.contains("CONCRETE")) bump(ActivityType.CONCRETE, 14 * weight);
-            if (upper.contains("GLASS")) bump(ActivityType.GLASSWORK, 14 * weight);
-            if (upper.contains("WOOL") || upper.contains("CARPET")) bump(ActivityType.DECORATING, 12 * weight);
-            if (upper.contains("SCULK")) bump(ActivityType.SCULKING, 14 * weight);
-            if (upper.contains("BANNER")) bump(ActivityType.DECORATION_BANNER, 14 * weight);
+            if (upper.contains("TERRACOTTA")) bump(ActivityType.BUILDING, 14 * weight);
+            if (upper.contains("CONCRETE")) bump(ActivityType.BUILDING, 14 * weight);
+            if (upper.contains("GLASS")) bump(ActivityType.BUILDING, 14 * weight);
+            if (upper.contains("WOOL") || upper.contains("CARPET")) bump(ActivityType.BUILDING, 12 * weight);
+            if (upper.contains("SCULK")) bump(ActivityType.BUILDING, 14 * weight);
+            if (upper.contains("BANNER")) bump(ActivityType.BUILDING, 14 * weight);
             if (upper.contains("PAINTING") || upper.contains("ITEM_FRAME")) {
-                bump(ActivityType.DECORATION_PAINTER, 14 * weight);
+                bump(ActivityType.BUILDING, 14 * weight);
             }
             if (upper.contains("LEAVES") || upper.contains("SAPLING") || upper.contains("FLOWER")
                     || upper.contains("ROSE") || upper.contains("TULIP") || upper.contains("DAISY")
                     || upper.contains("ORCHID") || upper.contains("DANDELION") || upper.contains("POPPY")
                     || upper.contains("LILAC") || upper.contains("PEONY") || upper.contains("LILY")
                     || upper.contains("SUNFLOWER") || upper.contains("BLUET") || upper.contains("AZURE")) {
-                bump(ActivityType.LANDSCAPING, 14 * weight);
-                bump(ActivityType.DECORATING, 6 * weight);
+                bump(ActivityType.BUILDING, 14 * weight);
+                bump(ActivityType.BUILDING, 6 * weight);
             }
             if (upper.contains("SAPLING") || upper.contains("PROPAGULE")) {
-                bump(ActivityType.TREE_FARMING, 14 * weight);
+                bump(ActivityType.FARMING, 14 * weight);
             }
             if (upper.contains("PUMPKIN") || upper.contains("MELON") || upper.contains("HAY")) {
-                bump(ActivityType.CROP_FARMING, 8 * weight);
+                bump(ActivityType.FARMING, 8 * weight);
             }
             if (upper.contains("STAIRS") || upper.contains("SLAB") || upper.contains("WALL")
                     || upper.contains("FENCE") || upper.contains("DOOR") || upper.contains("TRAPDOOR")) {
                 bump(ActivityType.BUILDING, 8 * weight);
-                bump(ActivityType.ROOFING, 6 * weight);
+                bump(ActivityType.BUILDING, 6 * weight);
             }
             if (upper.contains("CANDLE")) {
-                bump(ActivityType.LIGHTING, 10 * weight);
-                bump(ActivityType.DECORATING, 6 * weight);
+                bump(ActivityType.UTILITY, 10 * weight);
+                bump(ActivityType.BUILDING, 6 * weight);
             }
         }
 
-        if (upper.equals("WHEAT") || upper.equals("WHEAT_SEEDS")) bump(ActivityType.CROP_FARMING, 14 * weight);
+        if (upper.equals("WHEAT") || upper.equals("WHEAT_SEEDS")) bump(ActivityType.FARMING, 14 * weight);
         if (upper.equals("CARROT") || upper.equals("POTATO") || upper.equals("BEETROOT")
                 || upper.equals("BEETROOT_SEEDS") || upper.equals("PUMPKIN_SEEDS")
                 || upper.equals("MELON_SEEDS") || upper.equals("TORCHFLOWER_SEEDS")
                 || upper.equals("PITCHER_POD")) {
-            bump(ActivityType.CROP_FARMING, 12 * weight);
+            bump(ActivityType.FARMING, 12 * weight);
         }
         if (upper.equals("SWEET_BERRIES") || upper.equals("GLOW_BERRIES")) {
-            bump(ActivityType.CROP_FARMING, 12 * weight);
+            bump(ActivityType.FARMING, 12 * weight);
             bump(ActivityType.FOOD, 4 * weight);
         }
-        if (upper.equals("SUGAR_CANE")) bump(ActivityType.SUGAR_CANE_FARMING, 14 * weight);
-        if (upper.equals("BAMBOO")) bump(ActivityType.BAMBOO_FARMING, 14 * weight);
-        if (upper.equals("KELP")) bump(ActivityType.KELP_FARMING, 14 * weight);
+        if (upper.equals("SUGAR_CANE")) bump(ActivityType.FARMING, 14 * weight);
+        if (upper.equals("BAMBOO")) bump(ActivityType.FARMING, 14 * weight);
+        if (upper.equals("KELP")) bump(ActivityType.FARMING, 14 * weight);
         if (upper.equals("RED_MUSHROOM") || upper.equals("BROWN_MUSHROOM")
                 || upper.equals("CRIMSON_FUNGUS") || upper.equals("WARPED_FUNGUS")
                 || upper.equals("RED_MUSHROOM_BLOCK") || upper.equals("BROWN_MUSHROOM_BLOCK")
                 || upper.equals("MUSHROOM_STEM")) {
-            bump(ActivityType.MUSHROOM_FARMING, 12 * weight);
+            bump(ActivityType.FARMING, 12 * weight);
         }
         if (upper.equals("BONE_MEAL")) bump(ActivityType.FARMING, 8 * weight);
         // Bee items — explicit list to avoid BEEF / BEETROOT / BEEHIVE collisions
         if (upper.equals("BEEHIVE") || upper.equals("BEE_NEST") || upper.equals("BEE_SPAWN_EGG")
                 || upper.equals("HONEY_BOTTLE") || upper.equals("HONEY_BLOCK")
                 || upper.equals("HONEYCOMB") || upper.equals("HONEYCOMB_BLOCK")) {
-            bump(ActivityType.BEE_FARMING, 14 * weight);
+            bump(ActivityType.FARMING, 14 * weight);
         }
         if (upper.endsWith("_SAPLING") || upper.endsWith("_PROPAGULE")) {
-            bump(ActivityType.TREE_FARMING, 12 * weight);
+            bump(ActivityType.FARMING, 12 * weight);
         }
 
         if (item.getFoodComponent() != null) {
             bump(ActivityType.FOOD, 6 * weight);
-            bump(ActivityType.NUTRITION, 4 * weight);
+            bump(ActivityType.FOOD, 4 * weight);
         }
         if (upper.contains("GOLDEN_APPLE") || upper.contains("ENCHANTED_GOLDEN_APPLE")) {
-            bump(ActivityType.HEALING, 10 * weight);
+            bump(ActivityType.FOOD, 10 * weight);
         }
         if (upper.equals("MILK_BUCKET") || upper.contains("HONEY_BOTTLE")) {
-            bump(ActivityType.HEALING, 8 * weight);
+            bump(ActivityType.FOOD, 8 * weight);
         }
 
         if (upper.equals("BLAZE_POWDER") || upper.equals("BLAZE_ROD")) {
-            bump(ActivityType.BREWING, 14 * weight);
-            bump(ActivityType.NETHER, 4 * weight);
+            bump(ActivityType.CRAFTING, 14 * weight);
+            bump(ActivityType.EXPLORATION, 4 * weight);
         }
         if (upper.equals("NETHER_WART")) {
-            bump(ActivityType.BREWING, 14 * weight);
-            bump(ActivityType.NETHER_FARMING, 10 * weight);
+            bump(ActivityType.CRAFTING, 14 * weight);
+            bump(ActivityType.FARMING, 10 * weight);
         }
         if (upper.equals("EXPERIENCE_BOTTLE") || upper.contains("ENCHANTED_BOOK")
                 || upper.equals("LAPIS_LAZULI")) {
-            bump(ActivityType.ENCHANTING, 14 * weight);
+            bump(ActivityType.CRAFTING, 14 * weight);
         }
         if (upper.equals("BOOK") || upper.equals("WRITABLE_BOOK") || upper.equals("WRITTEN_BOOK")) {
-            bump(ActivityType.WRITING, 12 * weight);
+            bump(ActivityType.CRAFTING, 12 * weight);
         }
 
-        if (upper.contains("ELYTRA")) bump(ActivityType.ELYTRA, 28 * weight);
-        if (upper.contains("FIREWORK_ROCKET")) bump(ActivityType.ELYTRA, 8 * weight);
-        if (upper.contains("BOAT") || upper.contains("RAFT")) bump(ActivityType.BOAT, 18 * weight);
-        if (upper.contains("MINECART")) bump(ActivityType.MINECART, 18 * weight);
-        if (upper.contains("RAIL")) bump(ActivityType.RAILS, 14 * weight);
+        if (upper.contains("ELYTRA")) bump(ActivityType.TRAVEL, 28 * weight);
+        if (upper.contains("FIREWORK_ROCKET")) bump(ActivityType.TRAVEL, 8 * weight);
+        if (upper.contains("BOAT") || upper.contains("RAFT")) bump(ActivityType.TRAVEL, 18 * weight);
+        if (upper.contains("MINECART")) bump(ActivityType.TRAVEL, 18 * weight);
+        if (upper.contains("RAIL")) bump(ActivityType.TRAVEL, 14 * weight);
         if (upper.equals("SADDLE")) {
-            bump(ActivityType.RIDING, 18 * weight);
-            bump(ActivityType.HORSE_RIDING, 8 * weight);
+            bump(ActivityType.TRAVEL, 18 * weight);
+            bump(ActivityType.TRAVEL, 8 * weight);
         }
-        if (upper.contains("HORSE_ARMOR")) bump(ActivityType.HORSE_RIDING, 14 * weight);
-        if (upper.equals("LEAD")) bump(ActivityType.ANIMAL_FARMING, 10 * weight);
+        if (upper.contains("HORSE_ARMOR")) bump(ActivityType.TRAVEL, 14 * weight);
+        if (upper.equals("LEAD")) bump(ActivityType.FARMING, 10 * weight);
         if (upper.equals("NAME_TAG")) bump(ActivityType.UTILITY, 10 * weight);
-        if (upper.equals("MAP") || upper.equals("FILLED_MAP")) bump(ActivityType.MAP, 18 * weight);
-        if (upper.contains("COMPASS")) bump(ActivityType.COMPASS, 14 * weight);
-        if (upper.equals("CLOCK")) bump(ActivityType.CLOCK, 8 * weight);
-        if (upper.equals("SPYGLASS")) bump(ActivityType.SPYGLASS, 14 * weight);
+        if (upper.equals("MAP") || upper.equals("FILLED_MAP")) bump(ActivityType.EXPLORATION, 18 * weight);
+        if (upper.contains("COMPASS")) bump(ActivityType.EXPLORATION, 14 * weight);
+        if (upper.equals("CLOCK")) bump(ActivityType.EXPLORATION, 8 * weight);
+        if (upper.equals("SPYGLASS")) bump(ActivityType.EXPLORATION, 14 * weight);
         if (upper.equals("ENDER_PEARL") || upper.equals("ENDER_EYE") || upper.equals("EYE_OF_ENDER")) {
-            bump(ActivityType.TELEPORT, 18 * weight);
-            bump(ActivityType.END_EXPLORE, 6 * weight);
+            bump(ActivityType.EXPLORATION, 18 * weight);
+            bump(ActivityType.EXPLORATION, 6 * weight);
         }
-        if (upper.equals("CHORUS_FRUIT")) bump(ActivityType.TELEPORT, 14 * weight);
+        if (upper.equals("CHORUS_FRUIT")) bump(ActivityType.EXPLORATION, 14 * weight);
 
         if (upper.equals("TORCH") || upper.equals("SOUL_TORCH")
                 || upper.endsWith("_LANTERN") || upper.equals("LANTERN")
                 || upper.endsWith("_CANDLE") || upper.equals("CANDLE")
                 || upper.equals("GLOWSTONE") || upper.equals("SHROOMLIGHT")) {
-            bump(ActivityType.LIGHTING, 8 * weight);
-            bump(ActivityType.CAVING, 4 * weight);
+            bump(ActivityType.UTILITY, 8 * weight);
+            bump(ActivityType.MINING, 4 * weight);
         }
 
         if (upper.contains("REDSTONE")) bump(ActivityType.REDSTONE, 12 * weight);
-        if (upper.equals("REPEATER") || upper.equals("COMPARATOR")) bump(ActivityType.REDSTONE_LOGIC, 14 * weight);
-        if (upper.equals("OBSERVER")) bump(ActivityType.OBSERVER, 14 * weight);
-        if (upper.equals("PISTON") || upper.equals("STICKY_PISTON")) bump(ActivityType.PISTON, 14 * weight);
-        if (upper.equals("HOPPER") || upper.equals("HOPPER_MINECART")) bump(ActivityType.HOPPER, 14 * weight);
-        if (upper.equals("DROPPER")) bump(ActivityType.DROPPER, 14 * weight);
-        if (upper.equals("DISPENSER")) bump(ActivityType.DISPENSER, 14 * weight);
+        if (upper.equals("REPEATER") || upper.equals("COMPARATOR")) bump(ActivityType.REDSTONE, 14 * weight);
+        if (upper.equals("OBSERVER")) bump(ActivityType.REDSTONE, 14 * weight);
+        if (upper.equals("PISTON") || upper.equals("STICKY_PISTON")) bump(ActivityType.REDSTONE, 14 * weight);
+        if (upper.equals("HOPPER") || upper.equals("HOPPER_MINECART")) bump(ActivityType.REDSTONE, 14 * weight);
+        if (upper.equals("DROPPER")) bump(ActivityType.REDSTONE, 14 * weight);
+        if (upper.equals("DISPENSER")) bump(ActivityType.REDSTONE, 14 * weight);
         if (upper.equals("LEVER") || upper.contains("BUTTON") || upper.contains("PRESSURE_PLATE")) {
-            bump(ActivityType.REDSTONE_LOGIC, 6 * weight);
+            bump(ActivityType.REDSTONE, 6 * weight);
         }
 
-        if (upper.equals("WATER_BUCKET")) bump(ActivityType.BUCKET_USE, 8 * weight);
-        if (upper.equals("LAVA_BUCKET")) bump(ActivityType.BUCKET_USE, 8 * weight);
+        if (upper.equals("WATER_BUCKET")) bump(ActivityType.UTILITY, 8 * weight);
+        if (upper.equals("LAVA_BUCKET")) bump(ActivityType.UTILITY, 8 * weight);
 
-        if (upper.contains("NETHERITE")) bump(ActivityType.NETHER_RESOURCES, 6 * weight);
+        if (upper.contains("NETHERITE")) bump(ActivityType.EXPLORATION, 6 * weight);
         if (upper.equals("ANCIENT_DEBRIS") || upper.equals("NETHERITE_SCRAP")) {
-            bump(ActivityType.ANCIENT_DEBRIS, 24 * weight);
+            bump(ActivityType.MINING, 24 * weight);
         }
-        if (upper.equals("NETHERRACK")) bump(ActivityType.NETHERRACK, 12 * weight);
+        if (upper.equals("NETHERRACK")) bump(ActivityType.MINING, 12 * weight);
         if (upper.contains("END_STONE") || upper.contains("PURPUR") || upper.contains("CHORUS")) {
-            bump(ActivityType.END_STONE, 12 * weight);
+            bump(ActivityType.EXPLORATION, 12 * weight);
         }
 
         // ── Resources / smithing / crafting signals ─────────────────────
         if (upper.endsWith("_INGOT") || upper.endsWith("_NUGGET")) {
-            bump(ActivityType.SMITHING, 10 * weight);
-            bump(ActivityType.SMELTING, 6 * weight);
+            bump(ActivityType.CRAFTING, 10 * weight);
+            bump(ActivityType.CRAFTING, 6 * weight);
         }
         if (upper.equals("LAPIS_LAZULI")) {
-            bump(ActivityType.ENCHANTING, 16 * weight);
+            bump(ActivityType.CRAFTING, 16 * weight);
         }
         if (upper.equals("EMERALD")) {
-            bump(ActivityType.TRADING, 14 * weight);
+            bump(ActivityType.CRAFTING, 14 * weight);
         }
         if (upper.equals("DIAMOND") || upper.equals("NETHERITE_INGOT")
                 || upper.equals("SMITHING_TEMPLATE") || upper.endsWith("_TEMPLATE")) {
-            bump(ActivityType.SMITHING, 14 * weight);
+            bump(ActivityType.CRAFTING, 14 * weight);
         }
         if (upper.equals("CRAFTING_TABLE") || upper.equals("FURNACE") || upper.equals("SMOKER")
                 || upper.equals("BLAST_FURNACE") || upper.equals("SMITHING_TABLE")
@@ -714,7 +714,7 @@ public class ActivityDetector {
                 || upper.equals("ENCHANTING_TABLE") || upper.equals("BREWING_STAND")) {
             bump(ActivityType.UTILITY, 10 * weight);
         }
-        if (upper.equals("ANVIL")) bump(ActivityType.ANVIL, 18 * weight);
+        if (upper.equals("ANVIL")) bump(ActivityType.CRAFTING, 18 * weight);
 
         // ── Raw food signals (player wants to cook) ─────────────────────
         // Use exact equals to avoid CHICKEN_SPAWN_EGG / COD_BUCKET false-positives.
@@ -723,25 +723,25 @@ public class ActivityDetector {
                 || upper.equals("CHICKEN") || upper.equals("RABBIT") || upper.equals("COD")
                 || upper.equals("SALMON") || upper.equals("TROPICAL_FISH") || upper.equals("PUFFERFISH");
         if (isRawMeat) {
-            bump(ActivityType.COOKING, 10 * weight);
-            bump(ActivityType.SMELTING, 6 * weight);
+            bump(ActivityType.CRAFTING, 10 * weight);
+            bump(ActivityType.CRAFTING, 6 * weight);
             bump(ActivityType.FOOD, 4 * weight);
         }
         if (upper.equals("BUCKET") || upper.equals("WATER_BUCKET") || upper.equals("LAVA_BUCKET")
                 || upper.equals("MILK_BUCKET") || upper.equals("POWDER_SNOW_BUCKET")) {
-            bump(ActivityType.BUCKET_USE, 8 * weight);
+            bump(ActivityType.UTILITY, 8 * weight);
         }
 
         // ── Light / fire ────────────────────────────────────────────────
-        if (upper.equals("FIRE_CHARGE")) bump(ActivityType.LIGHTING, 10 * weight);
+        if (upper.equals("FIRE_CHARGE")) bump(ActivityType.UTILITY, 10 * weight);
 
         // ── Misc dyes / decoration ──────────────────────────────────────
         if (upper.endsWith("_DYE") || upper.equals("INK_SAC") || upper.equals("GLOW_INK_SAC")
                 || upper.equals("BONE_MEAL")) {
-            bump(ActivityType.DECORATING, 6 * weight);
+            bump(ActivityType.BUILDING, 6 * weight);
         }
         if (upper.contains("PAINTING") || upper.contains("ITEM_FRAME")) {
-            bump(ActivityType.DECORATING, 12 * weight);
+            bump(ActivityType.BUILDING, 12 * weight);
         }
 
         // ── Throwables & utility ────────────────────────────────────────
@@ -756,21 +756,21 @@ public class ActivityDetector {
             bump(ActivityType.UTILITY, 4 * weight);
         }
         if (upper.equals("PHANTOM_MEMBRANE")) {
-            bump(ActivityType.ELYTRA, 8 * weight);
+            bump(ActivityType.TRAVEL, 8 * weight);
             bump(ActivityType.UTILITY, 4 * weight);
         }
         if (upper.equals("SPONGE") || upper.equals("WET_SPONGE")) {
-            bump(ActivityType.DIVING, 16 * weight);
-            bump(ActivityType.OCEAN, 10 * weight);
-            bump(ActivityType.MONUMENT, 6 * weight);
+            bump(ActivityType.EXPLORATION, 16 * weight);
+            bump(ActivityType.EXPLORATION, 10 * weight);
+            bump(ActivityType.EXPLORATION, 6 * weight);
         }
         if (upper.equals("ECHO_SHARD")) {
-            bump(ActivityType.COMPASS, 14 * weight);
-            bump(ActivityType.DEEP_DARK, 8 * weight);
-            bump(ActivityType.ANCIENT_CITY, 6 * weight);
+            bump(ActivityType.EXPLORATION, 14 * weight);
+            bump(ActivityType.EXPLORATION, 8 * weight);
+            bump(ActivityType.EXPLORATION, 6 * weight);
         }
         if (upper.equals("RECOVERY_COMPASS")) {
-            bump(ActivityType.COMPASS, 22 * weight);
+            bump(ActivityType.EXPLORATION, 22 * weight);
         }
         if (upper.equals("GOAT_HORN")) {
             bump(ActivityType.UTILITY, 14 * weight);
@@ -783,63 +783,63 @@ public class ActivityDetector {
             bump(ActivityType.UTILITY, 8 * weight);
         }
         if (upper.equals("SNIFFER_EGG") || upper.equals("TURTLE_EGG")) {
-            bump(ActivityType.ANIMAL_FARMING, 12 * weight);
-            bump(ActivityType.BREEDING, 6 * weight);
+            bump(ActivityType.FARMING, 12 * weight);
+            bump(ActivityType.FARMING, 6 * weight);
         }
         if (upper.equals("OCHRE_FROGLIGHT") || upper.equals("VERDANT_FROGLIGHT")
                 || upper.equals("PEARLESCENT_FROGLIGHT")) {
-            bump(ActivityType.LIGHTING, 14 * weight);
-            bump(ActivityType.DECORATING, 10 * weight);
+            bump(ActivityType.UTILITY, 14 * weight);
+            bump(ActivityType.BUILDING, 10 * weight);
         }
         if (upper.equals("AMETHYST_SHARD") || upper.equals("AMETHYST_BLOCK")
                 || upper.equals("BUDDING_AMETHYST")) {
-            bump(ActivityType.AMETHYST_MINING, 16 * weight);
-            bump(ActivityType.DECORATING, 6 * weight);
+            bump(ActivityType.MINING, 16 * weight);
+            bump(ActivityType.BUILDING, 6 * weight);
         }
         if (upper.equals("GLOW_LICHEN") || upper.equals("SHROOMLIGHT")) {
-            bump(ActivityType.LIGHTING, 12 * weight);
-            bump(ActivityType.DECORATING, 8 * weight);
+            bump(ActivityType.UTILITY, 12 * weight);
+            bump(ActivityType.BUILDING, 8 * weight);
         }
         if (upper.equals("WITHER_ROSE")) {
-            bump(ActivityType.LANDSCAPING, 16 * weight);
+            bump(ActivityType.BUILDING, 16 * weight);
             bump(ActivityType.WITHERING, 6 * weight);
         }
         if (upper.equals("DRAGON_HEAD") || upper.equals("ZOMBIE_HEAD")
                 || upper.equals("SKELETON_SKULL") || upper.equals("WITHER_SKELETON_SKULL")
                 || upper.equals("CREEPER_HEAD") || upper.equals("PIGLIN_HEAD")
                 || upper.equals("PLAYER_HEAD")) {
-            bump(ActivityType.DECORATING, 12 * weight);
+            bump(ActivityType.BUILDING, 12 * weight);
         }
         if (upper.endsWith("_BED")) {
             bump(ActivityType.SLEEPING, 14 * weight);
         }
         if (upper.equals("CONDUIT") || upper.equals("HEART_OF_THE_SEA")
                 || upper.equals("NAUTILUS_SHELL")) {
-            bump(ActivityType.OCEAN, 18 * weight);
-            bump(ActivityType.DIVING, 12 * weight);
-            bump(ActivityType.MONUMENT, 6 * weight);
+            bump(ActivityType.EXPLORATION, 18 * weight);
+            bump(ActivityType.EXPLORATION, 12 * weight);
+            bump(ActivityType.EXPLORATION, 6 * weight);
         }
         if (upper.equals("SCUTE") || upper.equals("TURTLE_SCUTE")) {
-            bump(ActivityType.OCEAN, 8 * weight);
-            bump(ActivityType.ANIMAL_FARMING, 4 * weight);
+            bump(ActivityType.EXPLORATION, 8 * weight);
+            bump(ActivityType.FARMING, 4 * weight);
         }
         if (upper.equals("RABBIT_FOOT")) {
-            bump(ActivityType.BREWING, 14 * weight);
+            bump(ActivityType.CRAFTING, 14 * weight);
         }
         if (upper.equals("DRAGON_BREATH")) {
-            bump(ActivityType.ALCHEMY, 16 * weight);
+            bump(ActivityType.CRAFTING, 16 * weight);
         }
         if (upper.equals("MAGMA_CREAM")) {
-            bump(ActivityType.BREWING, 12 * weight);
-            bump(ActivityType.NETHER, 4 * weight);
+            bump(ActivityType.CRAFTING, 12 * weight);
+            bump(ActivityType.EXPLORATION, 4 * weight);
         }
         if (upper.equals("SHULKER_SHELL") || upper.endsWith("_SHULKER_BOX")
                 || upper.equals("SHULKER_BOX")) {
-            bump(ActivityType.ENDER, 14 * weight);
+            bump(ActivityType.EXPLORATION, 14 * weight);
         }
         if (upper.equals("END_CRYSTAL")) {
-            bump(ActivityType.DRAGON, 12 * weight);
-            bump(ActivityType.END, 6 * weight);
+            bump(ActivityType.COMBAT, 12 * weight);
+            bump(ActivityType.EXPLORATION, 6 * weight);
         }
         if (upper.equals("BUNDLE")) {
             bump(ActivityType.UTILITY, 10 * weight);
@@ -849,21 +849,21 @@ public class ActivityDetector {
             // substring traps like "PIG" matching PIGLIN never happen.
             String base = upper.substring(0, upper.length() - "_SPAWN_EGG".length());
             if (FRIENDLY_SPAWN_EGG_MOBS.contains(base)) {
-                bump(ActivityType.ANIMAL_FARMING, 12 * weight);
-                bump(ActivityType.BREEDING, 6 * weight);
+                bump(ActivityType.FARMING, 12 * weight);
+                bump(ActivityType.FARMING, 6 * weight);
             } else {
                 bump(ActivityType.UTILITY, 4 * weight);
             }
         }
         if (upper.equals("LIGHTNING_ROD")) {
             bump(ActivityType.REDSTONE, 8 * weight);
-            bump(ActivityType.DECORATING, 6 * weight);
+            bump(ActivityType.BUILDING, 6 * weight);
         }
         if (upper.equals("BRUSH")) {
-            bump(ActivityType.EXPLORING, 14 * weight);
+            bump(ActivityType.EXPLORATION, 14 * weight);
         }
         if (upper.endsWith("_POTTERY_SHERD")) {
-            bump(ActivityType.DECORATING, 10 * weight);
+            bump(ActivityType.BUILDING, 10 * weight);
         }
     }
 
@@ -896,61 +896,61 @@ public class ActivityDetector {
             if (e instanceof AnimalEntity) totalAnimals++;
 
             switch (type) {
-                case "CREEPER" -> bump(ActivityType.CREEPER, 18);
-                case "SKELETON", "STRAY" -> bump(ActivityType.SKELETON, 18);
-                case "WITHER_SKELETON" -> bump(ActivityType.WITHER_SKELETON, 24);
-                case "ZOMBIE", "HUSK" -> bump(ActivityType.ZOMBIE, 16);
-                case "DROWNED" -> bump(ActivityType.DROWNED, 18);
-                case "SPIDER", "CAVE_SPIDER" -> bump(ActivityType.SPIDER, 16);
-                case "ENDERMAN" -> bump(ActivityType.ENDERMAN, 22);
-                case "ENDERMITE" -> bump(ActivityType.ENDERMITE, 18);
-                case "BLAZE" -> bump(ActivityType.BLAZE, 22);
-                case "WITCH" -> bump(ActivityType.WITCH, 20);
-                case "GUARDIAN", "ELDER_GUARDIAN" -> bump(ActivityType.GUARDIAN, 24);
-                case "SHULKER" -> bump(ActivityType.SHULKER, 24);
-                case "WITHER" -> bump(ActivityType.WITHER, 60);
-                case "ENDER_DRAGON" -> bump(ActivityType.DRAGON, 80);
-                case "WARDEN" -> bump(ActivityType.WARDEN, 70);
-                case "PIGLIN" -> bump(ActivityType.PIGLIN, 18);
-                case "PIGLIN_BRUTE" -> bump(ActivityType.PIGLIN_BRUTE, 28);
-                case "HOGLIN" -> bump(ActivityType.HOGLIN, 18);
-                case "ZOGLIN" -> bump(ActivityType.ZOGLIN, 20);
-                case "GHAST" -> bump(ActivityType.GHAST, 22);
-                case "MAGMA_CUBE" -> bump(ActivityType.MAGMA_CUBE, 14);
-                case "SLIME" -> bump(ActivityType.SLIME, 12);
-                case "PHANTOM" -> bump(ActivityType.PHANTOM, 18);
-                case "RAVAGER" -> bump(ActivityType.RAVAGER, 28);
-                case "PILLAGER" -> bump(ActivityType.PILLAGER, 16);
-                case "EVOKER" -> bump(ActivityType.EVOKER, 22);
-                case "VINDICATOR" -> bump(ActivityType.VINDICATOR, 18);
-                case "VEX" -> bump(ActivityType.VEX, 14);
-                case "SILVERFISH" -> bump(ActivityType.SILVERFISH, 14);
-                case "BREEZE" -> bump(ActivityType.BREEZE, 22);
-                case "ZOMBIE_VILLAGER" -> bump(ActivityType.ZOMBIE, 14);
+                case "CREEPER" -> bump(ActivityType.COMBAT, 18);
+                case "SKELETON", "STRAY" -> bump(ActivityType.COMBAT, 18);
+                case "WITHER_SKELETON" -> bump(ActivityType.COMBAT, 24);
+                case "ZOMBIE", "HUSK" -> bump(ActivityType.COMBAT, 16);
+                case "DROWNED" -> bump(ActivityType.COMBAT, 18);
+                case "SPIDER", "CAVE_SPIDER" -> bump(ActivityType.COMBAT, 16);
+                case "ENDERMAN" -> bump(ActivityType.COMBAT, 22);
+                case "ENDERMITE" -> bump(ActivityType.COMBAT, 18);
+                case "BLAZE" -> bump(ActivityType.COMBAT, 22);
+                case "WITCH" -> bump(ActivityType.COMBAT, 20);
+                case "GUARDIAN", "ELDER_GUARDIAN" -> bump(ActivityType.COMBAT, 24);
+                case "SHULKER" -> bump(ActivityType.COMBAT, 24);
+                case "WITHER" -> bump(ActivityType.COMBAT, 60);
+                case "ENDER_DRAGON" -> bump(ActivityType.COMBAT, 80);
+                case "WARDEN" -> bump(ActivityType.COMBAT, 70);
+                case "PIGLIN" -> bump(ActivityType.COMBAT, 18);
+                case "PIGLIN_BRUTE" -> bump(ActivityType.COMBAT, 28);
+                case "HOGLIN" -> bump(ActivityType.COMBAT, 18);
+                case "ZOGLIN" -> bump(ActivityType.COMBAT, 20);
+                case "GHAST" -> bump(ActivityType.COMBAT, 22);
+                case "MAGMA_CUBE" -> bump(ActivityType.COMBAT, 14);
+                case "SLIME" -> bump(ActivityType.COMBAT, 12);
+                case "PHANTOM" -> bump(ActivityType.COMBAT, 18);
+                case "RAVAGER" -> bump(ActivityType.COMBAT, 28);
+                case "PILLAGER" -> bump(ActivityType.COMBAT, 16);
+                case "EVOKER" -> bump(ActivityType.COMBAT, 22);
+                case "VINDICATOR" -> bump(ActivityType.COMBAT, 18);
+                case "VEX" -> bump(ActivityType.COMBAT, 14);
+                case "SILVERFISH" -> bump(ActivityType.COMBAT, 14);
+                case "BREEZE" -> bump(ActivityType.COMBAT, 22);
+                case "ZOMBIE_VILLAGER" -> bump(ActivityType.COMBAT, 14);
                 default -> { /* no-op */ }
             }
 
             switch (type) {
-                case "SHEEP" -> bump(ActivityType.SHEEP_FARMING, 6);
-                case "COW", "MOOSHROOM" -> bump(ActivityType.COW_FARMING, 6);
-                case "PIG" -> bump(ActivityType.PIG_FARMING, 6);
-                case "CHICKEN" -> bump(ActivityType.CHICKEN_FARMING, 6);
-                case "BEE" -> bump(ActivityType.BEE_FARMING, 8);
-                case "VILLAGER" -> bump(ActivityType.TRADING, 14);
-                case "HORSE", "DONKEY", "MULE" -> bump(ActivityType.HORSE_RIDING, 6);
-                case "CAMEL" -> bump(ActivityType.CAMEL_RIDING, 8);
-                case "LLAMA", "TRADER_LLAMA" -> bump(ActivityType.LLAMA_RIDING, 6);
-                case "STRIDER" -> bump(ActivityType.STRIDER_RIDING, 8);
+                case "SHEEP" -> bump(ActivityType.FARMING, 6);
+                case "COW", "MOOSHROOM" -> bump(ActivityType.FARMING, 6);
+                case "PIG" -> bump(ActivityType.FARMING, 6);
+                case "CHICKEN" -> bump(ActivityType.FARMING, 6);
+                case "BEE" -> bump(ActivityType.FARMING, 8);
+                case "VILLAGER" -> bump(ActivityType.CRAFTING, 14);
+                case "HORSE", "DONKEY", "MULE" -> bump(ActivityType.TRAVEL, 6);
+                case "CAMEL" -> bump(ActivityType.TRAVEL, 8);
+                case "LLAMA", "TRADER_LLAMA" -> bump(ActivityType.TRAVEL, 6);
+                case "STRIDER" -> bump(ActivityType.TRAVEL, 8);
                 default -> { /* no-op */ }
             }
         }
 
         if (anyHostile) bump(ActivityType.COMBAT, 8 + totalHostiles * 2);
-        if (totalHostiles >= 4) bump(ActivityType.BATTLE, 18);
-        if (totalHostiles >= 8) bump(ActivityType.BERSERK, 24);
+        if (totalHostiles >= 4) bump(ActivityType.COMBAT, 18);
+        if (totalHostiles >= 8) bump(ActivityType.COMBAT, 24);
         if (totalAnimals >= 3) {
-            bump(ActivityType.ANIMAL_FARMING, 8);
-            bump(ActivityType.BREEDING, 4);
+            bump(ActivityType.FARMING, 8);
+            bump(ActivityType.FARMING, 4);
         }
     }
 
@@ -963,13 +963,13 @@ public class ActivityDetector {
 
         RegistryKey<World> dim = world.getRegistryKey();
         if (dim == World.NETHER) {
-            bump(ActivityType.NETHER, 8);
-            bump(ActivityType.NETHER_EXPLORE, 4);
+            bump(ActivityType.EXPLORATION, 8);
+            bump(ActivityType.EXPLORATION, 4);
         } else if (dim == World.END) {
-            bump(ActivityType.END, 8);
-            bump(ActivityType.END_EXPLORE, 4);
+            bump(ActivityType.EXPLORATION, 8);
+            bump(ActivityType.EXPLORATION, 4);
         } else {
-            bump(ActivityType.OVERWORLD, 4);
+            bump(ActivityType.EXPLORATION, 4);
         }
     }
 
@@ -981,26 +981,26 @@ public class ActivityDetector {
 
         double y = player.getY();
         if (y < 40) {
-            bump(ActivityType.CAVING, 6);
+            bump(ActivityType.MINING, 6);
             bump(ActivityType.MINING, 4);
         }
         if (y < 0) {
-            bump(ActivityType.DEEPSLATE_MINING, 6);
-            bump(ActivityType.DEEP_DARK, 4);
+            bump(ActivityType.MINING, 6);
+            bump(ActivityType.EXPLORATION, 4);
         }
-        if (y > 100 && !player.isOnGround()) bump(ActivityType.ELYTRA, 4);
+        if (y > 100 && !player.isOnGround()) bump(ActivityType.TRAVEL, 4);
 
-        if (world.getLightLevel(player.getBlockPos()) < 7) bump(ActivityType.LIGHTING, 3);
+        if (world.getLightLevel(player.getBlockPos()) < 7) bump(ActivityType.UTILITY, 3);
 
         long time = world.getTimeOfDay() % 24000;
         if (time > 13000 && time < 23000) bump(ActivityType.COMBAT, 3);
 
         if (player.isSubmergedInWater()) {
-            bump(ActivityType.DIVING, 12);
-            bump(ActivityType.OCEAN, 6);
+            bump(ActivityType.EXPLORATION, 12);
+            bump(ActivityType.EXPLORATION, 6);
         }
         if (player.isTouchingWater() && !player.isSubmergedInWater()) {
-            bump(ActivityType.OCEAN, 4);
+            bump(ActivityType.EXPLORATION, 4);
         }
     }
 
@@ -1016,26 +1016,26 @@ public class ActivityDetector {
         if (vehicle != null) {
             String vt = Registries.ENTITY_TYPE.getId(vehicle.getType()).getPath().toUpperCase();
             switch (vt) {
-                case "HORSE", "DONKEY", "MULE" -> bump(ActivityType.HORSE_RIDING, 40);
-                case "PIG" -> bump(ActivityType.PIG_RIDING, 40);
-                case "STRIDER" -> bump(ActivityType.STRIDER_RIDING, 40);
-                case "CAMEL" -> bump(ActivityType.CAMEL_RIDING, 40);
-                case "LLAMA" -> bump(ActivityType.LLAMA_RIDING, 40);
-                case "BOAT", "CHEST_BOAT" -> bump(ActivityType.BOAT, 40);
+                case "HORSE", "DONKEY", "MULE" -> bump(ActivityType.TRAVEL, 40);
+                case "PIG" -> bump(ActivityType.TRAVEL, 40);
+                case "STRIDER" -> bump(ActivityType.TRAVEL, 40);
+                case "CAMEL" -> bump(ActivityType.TRAVEL, 40);
+                case "LLAMA" -> bump(ActivityType.TRAVEL, 40);
+                case "BOAT", "CHEST_BOAT" -> bump(ActivityType.TRAVEL, 40);
                 case "MINECART", "CHEST_MINECART", "FURNACE_MINECART", "TNT_MINECART", "HOPPER_MINECART" ->
-                        bump(ActivityType.MINECART, 40);
-                default -> bump(ActivityType.RIDING, 25);
+                        bump(ActivityType.TRAVEL, 40);
+                default -> bump(ActivityType.TRAVEL, 25);
             }
         }
 
-        if (player.isFallFlying()) bump(ActivityType.ELYTRA, 60);
+        if (player.isFallFlying()) bump(ActivityType.TRAVEL, 60);
 
         if (idleTicks > 200) bump(ActivityType.IDLE, 12);
-        if (idleTicks > 1200) bump(ActivityType.AFK, 24);
+        if (idleTicks > 1200) bump(ActivityType.IDLE, 24);
 
         if (System.currentTimeMillis() - lastHurtTime < 4000) {
             bump(ActivityType.COMBAT, 14);
-            bump(ActivityType.DEFENSIVE, 6);
+            bump(ActivityType.COMBAT, 6);
         }
     }
 
@@ -1048,60 +1048,60 @@ public class ActivityDetector {
 
         if (ratio < 0.30f) {
             bump(ActivityType.LOW_HEALTH, 40);
-            bump(ActivityType.HEALING, 30);
-            bump(ActivityType.DEFENSIVE, 12);
+            bump(ActivityType.FOOD, 30);
+            bump(ActivityType.COMBAT, 12);
         } else if (ratio < 0.50f) {
-            bump(ActivityType.HEALING, 14);
+            bump(ActivityType.FOOD, 14);
         }
 
         int food = player.getHungerManager().getFoodLevel();
         if (food < 6) {
             bump(ActivityType.LOW_HUNGER, 30);
             bump(ActivityType.FOOD, 22);
-            bump(ActivityType.NUTRITION, 16);
+            bump(ActivityType.FOOD, 16);
         } else if (food < 12) {
             bump(ActivityType.FOOD, 6);
         }
 
         if (player.isOnFire() && !player.isFireImmune()) {
             bump(ActivityType.ON_FIRE, 50);
-            bump(ActivityType.HEALING, 18);
-            bump(ActivityType.BUCKET_USE, 14);
+            bump(ActivityType.FOOD, 18);
+            bump(ActivityType.UTILITY, 14);
         }
         if (player.isInLava()) {
             bump(ActivityType.IN_LAVA, 70);
-            bump(ActivityType.HEALING, 25);
-            bump(ActivityType.BUCKET_USE, 25);
+            bump(ActivityType.FOOD, 25);
+            bump(ActivityType.UTILITY, 25);
         }
 
         int air = player.getAir();
         int maxAir = player.getMaxAir();
         if (air >= 0 && air < maxAir / 3) {
             bump(ActivityType.DROWNING, 40);
-            bump(ActivityType.DIVING, 20);
-            bump(ActivityType.BUCKET_USE, 10);
+            bump(ActivityType.EXPLORATION, 20);
+            bump(ActivityType.UTILITY, 10);
         }
 
         if (player.fallDistance > 6f) {
             bump(ActivityType.FALLING, 40);
-            bump(ActivityType.ELYTRA, 14);
+            bump(ActivityType.TRAVEL, 14);
         }
 
         if (player.hasStatusEffect(StatusEffects.POISON)) {
             bump(ActivityType.POISONED, 35);
-            bump(ActivityType.HEALING, 18);
+            bump(ActivityType.FOOD, 18);
         }
         if (player.hasStatusEffect(StatusEffects.WITHER)) {
             bump(ActivityType.WITHERING, 50);
-            bump(ActivityType.HEALING, 25);
+            bump(ActivityType.FOOD, 25);
         }
         if (player.hasStatusEffect(StatusEffects.HUNGER)) bump(ActivityType.FOOD, 12);
-        if (player.hasStatusEffect(StatusEffects.NIGHT_VISION)) bump(ActivityType.CAVING, 6);
-        if (player.hasStatusEffect(StatusEffects.WATER_BREATHING)) bump(ActivityType.DIVING, 10);
-        if (player.hasStatusEffect(StatusEffects.FIRE_RESISTANCE)) bump(ActivityType.NETHER, 6);
-        if (player.hasStatusEffect(StatusEffects.SLOW_FALLING)) bump(ActivityType.ELYTRA, 6);
+        if (player.hasStatusEffect(StatusEffects.NIGHT_VISION)) bump(ActivityType.MINING, 6);
+        if (player.hasStatusEffect(StatusEffects.WATER_BREATHING)) bump(ActivityType.EXPLORATION, 10);
+        if (player.hasStatusEffect(StatusEffects.FIRE_RESISTANCE)) bump(ActivityType.EXPLORATION, 6);
+        if (player.hasStatusEffect(StatusEffects.SLOW_FALLING)) bump(ActivityType.TRAVEL, 6);
 
-        if (player.isSneaking()) bump(ActivityType.DEFENSIVE, 4);
+        if (player.isSneaking()) bump(ActivityType.COMBAT, 4);
         if (player.isSprinting() && !player.isFallFlying()) bump(ActivityType.COMBAT, 3);
     }
 
@@ -1122,31 +1122,31 @@ public class ActivityDetector {
 
                     switch (name) {
                         case "crafting_table" -> bump(ActivityType.UTILITY, 8);
-                        case "furnace" -> bump(ActivityType.SMELTING, 12);
-                        case "blast_furnace" -> bump(ActivityType.SMELTING, 14);
-                        case "smoker" -> bump(ActivityType.COOKING, 14);
-                        case "anvil", "chipped_anvil", "damaged_anvil" -> bump(ActivityType.ANVIL, 18);
-                        case "enchanting_table" -> bump(ActivityType.ENCHANTING, 24);
-                        case "brewing_stand" -> bump(ActivityType.BREWING, 24);
-                        case "loom" -> bump(ActivityType.LOOM, 18);
-                        case "cartography_table" -> bump(ActivityType.CARTOGRAPHY, 18);
-                        case "smithing_table" -> bump(ActivityType.SMITHING, 18);
-                        case "stonecutter" -> bump(ActivityType.STONECUTTER, 18);
-                        case "grindstone" -> bump(ActivityType.GRINDSTONE, 18);
-                        case "composter" -> bump(ActivityType.COMPOSTING, 14);
-                        case "respawn_anchor" -> bump(ActivityType.NETHER, 8);
-                        case "lodestone" -> bump(ActivityType.COMPASS, 10);
+                        case "furnace" -> bump(ActivityType.CRAFTING, 12);
+                        case "blast_furnace" -> bump(ActivityType.CRAFTING, 14);
+                        case "smoker" -> bump(ActivityType.CRAFTING, 14);
+                        case "anvil", "chipped_anvil", "damaged_anvil" -> bump(ActivityType.CRAFTING, 18);
+                        case "enchanting_table" -> bump(ActivityType.CRAFTING, 24);
+                        case "brewing_stand" -> bump(ActivityType.CRAFTING, 24);
+                        case "loom" -> bump(ActivityType.CRAFTING, 18);
+                        case "cartography_table" -> bump(ActivityType.CRAFTING, 18);
+                        case "smithing_table" -> bump(ActivityType.CRAFTING, 18);
+                        case "stonecutter" -> bump(ActivityType.CRAFTING, 18);
+                        case "grindstone" -> bump(ActivityType.CRAFTING, 18);
+                        case "composter" -> bump(ActivityType.CRAFTING, 14);
+                        case "respawn_anchor" -> bump(ActivityType.EXPLORATION, 8);
+                        case "lodestone" -> bump(ActivityType.EXPLORATION, 10);
                         case "beacon" -> bump(ActivityType.UTILITY, 12);
-                        case "bookshelf", "chiseled_bookshelf" -> bump(ActivityType.ENCHANTING, 6);
+                        case "bookshelf", "chiseled_bookshelf" -> bump(ActivityType.CRAFTING, 6);
                         case "jukebox" -> bump(ActivityType.IDLE, 8);
                         case "barrel", "chest", "trapped_chest" -> bump(ActivityType.UTILITY, 4);
-                        case "ender_chest" -> bump(ActivityType.ENDER, 10);
-                        case "shulker_box" -> bump(ActivityType.ENDER, 8);
-                        case "beehive", "bee_nest" -> bump(ActivityType.BEE_FARMING, 14);
-                        case "soul_campfire" -> bump(ActivityType.NETHER, 6);
-                        case "campfire" -> bump(ActivityType.COOKING, 8);
+                        case "ender_chest" -> bump(ActivityType.EXPLORATION, 10);
+                        case "shulker_box" -> bump(ActivityType.EXPLORATION, 8);
+                        case "beehive", "bee_nest" -> bump(ActivityType.FARMING, 14);
+                        case "soul_campfire" -> bump(ActivityType.EXPLORATION, 6);
+                        case "campfire" -> bump(ActivityType.CRAFTING, 8);
                         case "spawner" -> bump(ActivityType.COMBAT, 12);
-                        case "sculk_shrieker", "sculk_sensor", "sculk_catalyst" -> bump(ActivityType.DEEP_DARK, 18);
+                        case "sculk_shrieker", "sculk_sensor", "sculk_catalyst" -> bump(ActivityType.EXPLORATION, 18);
                         default -> { /* no-op */ }
                     }
                     if (name.contains("_bed")) bump(ActivityType.SLEEPING, 6);
@@ -1159,7 +1159,7 @@ public class ActivityDetector {
         List<PlayerEntity> others = world.getEntitiesByClass(
                 PlayerEntity.class, pvpBox, p -> p != player && p.isAlive()
         );
-        if (!others.isEmpty()) bump(ActivityType.PVP, 12 + Math.min(others.size() * 4, 24));
+        if (!others.isEmpty()) bump(ActivityType.COMBAT, 12 + Math.min(others.size() * 4, 24));
     }
 
     private void bump(ActivityType type, int amount) {

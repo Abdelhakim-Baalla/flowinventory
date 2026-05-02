@@ -315,283 +315,50 @@ public class HotbarSwapper {
     }
 
     /**
-     * Maps each activity to the item type that should be in the player's
-     * primary hand. Covers EVERY value of {@link ActivityType}.
+     * Fallback when the preset has no slot 0: matches the first slot of
+     * {@link ProfileManager}'s built-in presets for each {@link ActivityType}.
      */
     private static String getPrimaryItemTypeForActivity(ActivityType activity) {
         switch (activity) {
-            // ── Mining family ────────────────────────────────────────
-            case MINING:
-            case ORE:
-            case STONE:
-            case DIAMOND:
-            case ANCIENT_DEBRIS:
-            case COAL_MINING:
-            case IRON_MINING:
-            case GOLD_MINING:
-            case COPPER_MINING:
-            case LAPIS_MINING:
-            case REDSTONE_MINING:
-            case AMETHYST_MINING:
-            case QUARTZ_MINING:
-            case DEEPSLATE_MINING:
-            case OBSIDIAN_MINING:
-            case NETHER_ORE:
-            case EMERALD:
-                return "PICKAXE";
-            case DIRT:
-            case SAND:
-            case GRAVEL:
-            case CLAY:
-                return "SHOVEL";
-            case SCULK_MINING:
-                return "HOE";
-
-            // ── Combat family ────────────────────────────────────────
             case COMBAT:
-            case SWORD_COMBAT:
-            case ZOMBIE:
-            case BATTLE:
-            case RAID:
-            case PVP:
-            case SPIDER:
-            case HUSK:
-            case STRAY:
-            case DROWNED:
-            case WITHER_SKELETON:
-            case PIGLIN:
-            case PIGLIN_BRUTE:
-            case HOGLIN:
-            case ZOGLIN:
-            case VINDICATOR:
-            case VEX:
-            case SILVERFISH:
-            case ENDERMITE:
-            case MAGMA_CUBE:
-            case SLIME:
-            case BERSERK:
-            case ENDERMAN:
-            case RAVAGER:
-            case WITHER:
-            case DRAGON:
-            case WARDEN:
             case EMERGENCY_COMBAT:
                 return "SWORD";
-
-            case AXE_COMBAT:
-                return "AXE_COMBAT";
-            case TRIDENT_COMBAT:
-            case GUARDIAN:
-                return "TRIDENT";
-            case MACE:
-                return "MACE";
-            case ARCHERY:
-            case SNIPER:
-            case SKELETON:
-            case BLAZE:
-            case GHAST:
-            case PHANTOM:
-            case PILLAGER:
-            case SHULKER:
-                return "BOW";
-            case CROSSBOW_COMBAT:
-                return "CROSSBOW";
-            case EXPLOSIVES:
-            case CREEPER:
-                return "TNT";
-            case POTION_COMBAT:
-            case WITCH:
-            case EVOKER:
-                return "POTION";
-            case BREEZE:
-                return "WIND_CHARGE";
-            case DEFENSIVE:
-                return "SHIELD";
-
-            // ── Building family ──────────────────────────────────────
+            case MINING:
+                return "PICKAXE";
             case BUILDING:
-            case STONEMASONRY:
-            case DECORATING:
-            case TERRACOTTA:
-            case CONCRETE:
-            case GLASSWORK:
-            case SCULKING:
-            case ROOFING:
-            case FURNISHING:
-            case LANDSCAPING:
-            case DECORATION_PAINTER:
-            case DECORATION_BANNER:
-            case DECORATION_LIGHTS:
                 return "BLOCK";
-            case WOODWORKING:
-                return "AXE_COMBAT";
-
-            // ── Farming family ───────────────────────────────────────
             case FARMING:
-            case CROP_FARMING:
-            case TREE_FARMING:
-            case ANIMAL_FARMING:
-            case COW_FARMING:
-            case PIG_FARMING:
-            case CHICKEN_FARMING:
-            case SHEEP_FARMING:
-            case BEE_FARMING:
-            case MUSHROOM_FARMING:
-            case KELP_FARMING:
-            case BAMBOO_FARMING:
-            case SUGAR_CANE_FARMING:
-            case BREEDING:
-            case NETHER_FARMING:
                 return "HOE";
-
-            // ── Fishing / water ─────────────────────────────────────
-            case FISHING:
-            case OCEAN_FISHING:
-            case JUNK_FISHING:
-                return "FISHING_ROD";
-            case OCEAN:
-            case OCEAN_EXPLORE:
-            case SAILING:
-            case DIVING:
-                return "OCEAN";
-
-            // ── Crafting ────────────────────────────────────────────
-            case ENCHANTING:
-                return "ENCHANTING";
-            case BREWING:
-            case ALCHEMY:
-                return "BREWING_INGREDIENT";
-            case SMITHING:
-            case ANVIL:
-            case GRINDSTONE:
-            case STONECUTTER:
-            case LOOM:
-            case CARTOGRAPHY:
-            case COMPOSTING:
-            case COOKING:
-            case SMELTING:
-            case TRADING:
-                return "TOOL";
-
-            // ── Exploration ─────────────────────────────────────────
-            case EXPLORING:
-            case CAVING:
-            case JUNGLE_EXPLORE:
-            case DESERT_EXPLORE:
-            case SNOWY_EXPLORE:
-            case SWAMP_EXPLORE:
-            case MOUNTAIN_EXPLORE:
-            case BADLANDS_EXPLORE:
-            case MUSHROOM_EXPLORE:
-            case FOREST_EXPLORE:
-            case PLAINS_EXPLORE:
-            case SAVANNA_EXPLORE:
-            case STRONGHOLD:
-            case MONUMENT:
-            case MANSION:
-            case FORTRESS:
-            case BASTION:
-            case END_CITY:
-            case ANCIENT_CITY:
-            case DEEP_DARK:
-            case OVERWORLD:
-                return "COMPASS";
-            case NETHER_EXPLORE:
-            case NETHER_RESOURCES:
-            case NETHER:
-            case NETHERRACK:
-                return "NETHER_GEM";
-            case END_EXPLORE:
-            case END:
-            case END_STONE:
-            case ENDER:
-                return "ENDER";
-
-            // ── Redstone family ─────────────────────────────────────
             case REDSTONE:
-            case REDSTONE_LOGIC:
-            case REDSTONE_MACHINES:
-            case REDSTONE_TRANSPORT:
-            case OBSERVER:
-            case PISTON:
-            case HOPPER:
-            case DROPPER:
-            case DISPENSER:
                 return "REDSTONE";
-
-            // ── Riding / transport ──────────────────────────────────
-            case RIDING:
-            case HORSE_RIDING:
-            case PIG_RIDING:
-            case STRIDER_RIDING:
-            case CAMEL_RIDING:
-            case LLAMA_RIDING:
-            case DONKEY_RIDING:
-            case MULE_RIDING:
-                return "SADDLE";
-            case BOAT:
-                return "BOAT";
-            case MINECART:
-                return "MINECART";
-            case RAILS:
-                return "RAIL";
-            case ELYTRA:
-            case PARACHUTE:
-            case FALLING:
-                return "ELYTRA";
-
-            // ── Utility / misc ──────────────────────────────────────
-            case UTILITY:
-            case TOOL:
-            case SADDLE:
-                return "TOOL";
-            case LIGHTING:
-                return "TORCH";
-            case MAP:
-                return "MAP";
-            case COMPASS:
+            case CRAFTING:
+                return "BOOK";
+            case EXPLORATION:
                 return "COMPASS";
-            case CLOCK:
-                return "CLOCK";
-            case SPYGLASS:
-                return "SPYGLASS";
-
-            // ── Vital / state-driven ────────────────────────────────
-            case NUTRITION:
+            case TRAVEL:
+                return "ELYTRA";
+            case UTILITY:
+                return "TOOL";
             case FOOD:
-            case LOW_HUNGER:
                 return "FOOD";
-            case HEALING:
-            case REGENERATION:
             case LOW_HEALTH:
-            case POISONED:
-            case WITHERING:
                 return "GOLDEN_APPLE";
+            case LOW_HUNGER:
+                return "STEAK";
             case ON_FIRE:
             case IN_LAVA:
                 return "WATER_BUCKET";
             case DROWNING:
                 return "BUCKET";
-            case TELEPORT:
-                return "ENDER_PEARL";
-            case FIREWORK:
-                return "FIREWORK";
-            case BANNER:
-                return "BANNER";
-            case SIGN:
-                return "SIGN";
-            case BOOK:
-            case WRITING:
-                return "BOOK";
-            case LEASH:
-                return "LEAD";
-            case BUCKET_USE:
-                return "BUCKET";
+            case FALLING:
+                return "ELYTRA";
+            case POISONED:
+            case WITHERING:
+                return "MILK_BUCKET";
             case SLEEPING:
                 return "BED";
-            case AFK:
             case IDLE:
-                return "FOOD";
+                return null;
             case GENERAL:
             case UNKNOWN:
             default:
