@@ -25,6 +25,7 @@ import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Heart of FlowInventory's intelligence.
@@ -58,11 +59,27 @@ public class ActivityDetector {
     /** ms after a manual scroll during which auto-apply is suppressed. */
     private static final long MANUAL_OVERRIDE_MS = 4500;
 
+    /**
+     * ms after the player explicitly sets an activity (G/V/forceSetActivity)
+     * during which auto-detection is fully suppressed. Without this, the
+     * detector would immediately switch back to whatever the held item
+     * scores highest for, making G feel broken.
+     */
+    private static final long FORCE_OVERRIDE_MS = 12_000;
+
     /** Cooldown between two emergency-combat triggers. */
     private static final long EMERGENCY_COOLDOWN_MS = 2500;
 
     /** Scan radius for nearby workstations (blocks). */
     private static final int WORKSTATION_RADIUS = 4;
+
+    /** Spawn-egg entity bases (upper-case) that should bias toward farming / breeding. */
+    private static final Set<String> FRIENDLY_SPAWN_EGG_MOBS = Set.of(
+            "COW", "MOOSHROOM", "PIG", "SHEEP", "CHICKEN", "RABBIT", "HORSE",
+            "LLAMA", "TRADER_LLAMA", "CAMEL", "DONKEY", "MULE", "CAT", "OCELOT",
+            "WOLF", "PARROT", "FOX", "PANDA", "AXOLOTL", "FROG", "BEE",
+            "VILLAGER", "WANDERING_TRADER", "GOAT", "SNIFFER", "TURTLE",
+            "STRIDER", "SQUID", "GLOW_SQUID", "DOLPHIN");
 
     private final EnumMap<ActivityType, Integer> activityWeights = new EnumMap<>(ActivityType.class);
 
@@ -78,6 +95,7 @@ public class ActivityDetector {
     private int lastObservedSelectedSlot = -1;
     private long lastManualScrollTime = 0;
     private long lastEmergencyTime = 0;
+    private long lastForceSetTime = 0;
 
     private double lastX, lastY, lastZ;
 
@@ -96,20 +114,35 @@ public class ActivityDetector {
         currentActivity = activity;
         pendingActivity = activity;
         pendingTicks = 0;
-        lastSwitchTime = System.currentTimeMillis();
+        long now = System.currentTimeMillis();
+        lastSwitchTime = now;
 
-        // The player explicitly asked, so cancel any active manual-override
-        // window — they want a fresh swap right now.
+        // Cancel any active scroll-override (the player explicitly chose),
+        // and start a force-override window so the auto-detector can't
+        // switch us back the next tick because of what's in the hand.
         lastManualScrollTime = 0;
+        lastForceSetTime = now;
 
         FlowInventoryMod.LOGGER.info(
-                "[FlowInventory] Activity manually set to: {}",
-                activity.displayName
+                "[FlowInventory] Activity manually set to: {} (auto-detect locked for {}ms)",
+                activity.displayName,
+                FORCE_OVERRIDE_MS
         );
 
         if (FlowInventoryMod.config.autoApplyProfile) {
             NetworkHandler.sendActivityChange(activity);
         }
+    }
+
+    /** True if the player just used G/V and we're inside the lock window. */
+    public boolean isInForceOverride() {
+        return (System.currentTimeMillis() - lastForceSetTime) < FORCE_OVERRIDE_MS;
+    }
+
+    /** Remaining seconds in the current force-override window (0 if none). */
+    public int getForceOverrideRemainingSeconds() {
+        long remaining = FORCE_OVERRIDE_MS - (System.currentTimeMillis() - lastForceSetTime);
+        return remaining > 0 ? (int) Math.ceil(remaining / 1000.0) : 0;
     }
 
     public void tick(PlayerEntity player) {
@@ -163,11 +196,20 @@ public class ActivityDetector {
             activityWeights.merge(currentActivity, 8, Integer::sum);
         }
 
-        // 11. Emergency check FIRST — bypasses every other rule
+        // 11. Emergency check FIRST — bypasses every other rule, including
+        //     the force-override window (an emergency literally cannot wait).
         if (shouldTriggerEmergencyCombat(player)
                 && now - lastEmergencyTime > EMERGENCY_COOLDOWN_MS) {
             triggerEmergency(player, now);
             return; // skip the normal flow this tick
+        }
+
+        // 11½. Inside the force-override window (just pressed G/V) we suppress
+        //      all auto-detection so the player's explicit choice actually
+        //      sticks. Emergencies above already bypassed this; everything
+        //      else waits.
+        if (now - lastForceSetTime < FORCE_OVERRIDE_MS) {
+            return;
         }
 
         // 11b. Soft tool emergency — if the held tool is about to break and
@@ -392,6 +434,25 @@ public class ActivityDetector {
 
     // ==================== ITEM SCORING ====================
 
+    /**
+     * True if {@code path} contains {@code word} as a separate underscore-
+     * delimited token, OR is exactly {@code word}. This avoids classic
+     * substring traps:
+     * <ul>
+     *   <li>{@code hasWord("cooked_beef", "BEE")} → false (it's part of "BEEF")</li>
+     *   <li>{@code hasWord("waxed_copper_block", "AXE")} → false</li>
+     *   <li>{@code hasWord("bowl", "BOW")} → false</li>
+     *   <li>{@code hasWord("wooden_axe", "AXE")} → true</li>
+     * </ul>
+     * Comparison is case-insensitive (caller passes upper-case).
+     */
+    private static boolean hasWord(String upperPath, String word) {
+        if (upperPath.equals(word)) return true;
+        if (upperPath.startsWith(word + "_")) return true;
+        if (upperPath.endsWith("_" + word)) return true;
+        return upperPath.contains("_" + word + "_");
+    }
+
     private void scoreFromItem(ItemStack stack, int weight) {
         if (stack == null || stack.isEmpty()) return;
 
@@ -399,24 +460,34 @@ public class ActivityDetector {
         String path = Registries.ITEM.getId(item).getPath();
         String upper = path.toUpperCase();
 
-        if (upper.contains("SWORD")) bump(ActivityType.SWORD_COMBAT, 22 * weight);
-        if (upper.contains("AXE") && !upper.contains("PICKAXE")) {
+        // ── Weapons (use word-boundary checks to avoid AXE-in-WAXED etc.) ──
+        if (hasWord(upper, "SWORD") || upper.endsWith("_SWORD")) {
+            bump(ActivityType.SWORD_COMBAT, 22 * weight);
+            bump(ActivityType.COMBAT, 6 * weight);
+        }
+        boolean isAxe = upper.endsWith("_AXE") && !upper.endsWith("_PICKAXE");
+        if (isAxe) {
             bump(ActivityType.AXE_COMBAT, 14 * weight);
             bump(ActivityType.WOODWORKING, 10 * weight);
             bump(ActivityType.TREE_FARMING, 9 * weight);
         }
-        if (upper.contains("TRIDENT")) bump(ActivityType.TRIDENT_COMBAT, 25 * weight);
-        if (upper.contains("MACE") || upper.contains("HEAVY_CORE")) bump(ActivityType.MACE, 25 * weight);
-        if (upper.contains("BOW") && !upper.contains("CROSSBOW")) {
+        if (hasWord(upper, "TRIDENT")) bump(ActivityType.TRIDENT_COMBAT, 25 * weight);
+        if (hasWord(upper, "MACE") || hasWord(upper, "HEAVY_CORE")) bump(ActivityType.MACE, 25 * weight);
+        // BOW = exact "bow" or anything ending "_bow" but never "_crossbow"
+        boolean isBow = (upper.equals("BOW") || (upper.endsWith("_BOW") && !upper.endsWith("_CROSSBOW")));
+        if (isBow) {
             bump(ActivityType.ARCHERY, 22 * weight);
             bump(ActivityType.SNIPER, 8 * weight);
         }
-        if (upper.contains("CROSSBOW")) {
+        if (upper.equals("CROSSBOW") || upper.endsWith("_CROSSBOW")) {
             bump(ActivityType.CROSSBOW_COMBAT, 22 * weight);
             bump(ActivityType.RAID, 6 * weight);
         }
-        if (upper.contains("ARROW")) bump(ActivityType.ARCHERY, 6 * weight);
-        if (upper.contains("SHIELD")) {
+        if (upper.equals("ARROW") || hasWord(upper, "ARROW")
+                || upper.equals("TIPPED_ARROW") || upper.equals("SPECTRAL_ARROW")) {
+            bump(ActivityType.ARCHERY, 6 * weight);
+        }
+        if (hasWord(upper, "SHIELD")) {
             bump(ActivityType.DEFENSIVE, 14 * weight);
             bump(ActivityType.COMBAT, 6 * weight);
         }
@@ -431,32 +502,34 @@ public class ActivityDetector {
         if (upper.equals("POTION")) bump(ActivityType.HEALING, 10 * weight);
         if (upper.equals("TOTEM_OF_UNDYING")) bump(ActivityType.DEFENSIVE, 18 * weight);
 
-        if (upper.contains("PICKAXE")) {
+        if (upper.endsWith("_PICKAXE")) {
             bump(ActivityType.MINING, 22 * weight);
             bump(ActivityType.STONEMASONRY, 6 * weight);
         }
-        if (upper.contains("SHOVEL")) {
+        if (upper.endsWith("_SHOVEL")) {
             bump(ActivityType.DIRT, 14 * weight);
             bump(ActivityType.SAND, 12 * weight);
             bump(ActivityType.GRAVEL, 10 * weight);
         }
-        if (upper.contains("HOE")) {
+        if (upper.endsWith("_HOE")) {
             bump(ActivityType.FARMING, 18 * weight);
             bump(ActivityType.CROP_FARMING, 14 * weight);
         }
-        if (upper.contains("SHEARS")) {
+        if (upper.equals("SHEARS")) {
             bump(ActivityType.SHEEP_FARMING, 14 * weight);
             bump(ActivityType.FARMING, 6 * weight);
         }
-        if (upper.contains("FISHING_ROD")) {
+        if (upper.equals("FISHING_ROD") || upper.endsWith("_FISHING_ROD")) {
             bump(ActivityType.FISHING, 26 * weight);
             bump(ActivityType.OCEAN_FISHING, 8 * weight);
         }
-        if (upper.contains("CARROT_ON_A_STICK") || upper.contains("WARPED_FUNGUS_ON_A_STICK")) {
+        if (upper.equals("CARROT_ON_A_STICK")) {
             bump(ActivityType.PIG_RIDING, 18 * weight);
-            bump(ActivityType.STRIDER_RIDING, 14 * weight);
         }
-        if (upper.contains("FLINT_AND_STEEL")) {
+        if (upper.equals("WARPED_FUNGUS_ON_A_STICK")) {
+            bump(ActivityType.STRIDER_RIDING, 18 * weight);
+        }
+        if (upper.equals("FLINT_AND_STEEL")) {
             bump(ActivityType.LIGHTING, 12 * weight);
             bump(ActivityType.NETHER, 6 * weight);
         }
@@ -509,17 +582,34 @@ public class ActivityDetector {
 
         if (upper.equals("WHEAT") || upper.equals("WHEAT_SEEDS")) bump(ActivityType.CROP_FARMING, 14 * weight);
         if (upper.equals("CARROT") || upper.equals("POTATO") || upper.equals("BEETROOT")
-                || upper.contains("BEETROOT_SEEDS") || upper.contains("PUMPKIN_SEEDS")
-                || upper.contains("MELON_SEEDS")) {
+                || upper.equals("BEETROOT_SEEDS") || upper.equals("PUMPKIN_SEEDS")
+                || upper.equals("MELON_SEEDS") || upper.equals("TORCHFLOWER_SEEDS")
+                || upper.equals("PITCHER_POD")) {
             bump(ActivityType.CROP_FARMING, 12 * weight);
+        }
+        if (upper.equals("SWEET_BERRIES") || upper.equals("GLOW_BERRIES")) {
+            bump(ActivityType.CROP_FARMING, 12 * weight);
+            bump(ActivityType.FOOD, 4 * weight);
         }
         if (upper.equals("SUGAR_CANE")) bump(ActivityType.SUGAR_CANE_FARMING, 14 * weight);
         if (upper.equals("BAMBOO")) bump(ActivityType.BAMBOO_FARMING, 14 * weight);
         if (upper.equals("KELP")) bump(ActivityType.KELP_FARMING, 14 * weight);
-        if (upper.contains("MUSHROOM")) bump(ActivityType.MUSHROOM_FARMING, 12 * weight);
-        if (upper.contains("BONE_MEAL")) bump(ActivityType.FARMING, 8 * weight);
-        if (upper.contains("HONEY") || upper.contains("BEE")) bump(ActivityType.BEE_FARMING, 14 * weight);
-        if (upper.contains("SAPLING") || upper.contains("PROPAGULE")) bump(ActivityType.TREE_FARMING, 12 * weight);
+        if (upper.equals("RED_MUSHROOM") || upper.equals("BROWN_MUSHROOM")
+                || upper.equals("CRIMSON_FUNGUS") || upper.equals("WARPED_FUNGUS")
+                || upper.equals("RED_MUSHROOM_BLOCK") || upper.equals("BROWN_MUSHROOM_BLOCK")
+                || upper.equals("MUSHROOM_STEM")) {
+            bump(ActivityType.MUSHROOM_FARMING, 12 * weight);
+        }
+        if (upper.equals("BONE_MEAL")) bump(ActivityType.FARMING, 8 * weight);
+        // Bee items — explicit list to avoid BEEF / BEETROOT / BEEHIVE collisions
+        if (upper.equals("BEEHIVE") || upper.equals("BEE_NEST") || upper.equals("BEE_SPAWN_EGG")
+                || upper.equals("HONEY_BOTTLE") || upper.equals("HONEY_BLOCK")
+                || upper.equals("HONEYCOMB") || upper.equals("HONEYCOMB_BLOCK")) {
+            bump(ActivityType.BEE_FARMING, 14 * weight);
+        }
+        if (upper.endsWith("_SAPLING") || upper.endsWith("_PROPAGULE")) {
+            bump(ActivityType.TREE_FARMING, 12 * weight);
+        }
 
         if (item.getFoodComponent() != null) {
             bump(ActivityType.FOOD, 6 * weight);
@@ -571,8 +661,9 @@ public class ActivityDetector {
         if (upper.equals("CHORUS_FRUIT")) bump(ActivityType.TELEPORT, 14 * weight);
 
         if (upper.equals("TORCH") || upper.equals("SOUL_TORCH")
-                || upper.contains("LANTERN") || upper.contains("CANDLE")
-                || upper.equals("GLOWSTONE")) {
+                || upper.endsWith("_LANTERN") || upper.equals("LANTERN")
+                || upper.endsWith("_CANDLE") || upper.equals("CANDLE")
+                || upper.equals("GLOWSTONE") || upper.equals("SHROOMLIGHT")) {
             bump(ActivityType.LIGHTING, 8 * weight);
             bump(ActivityType.CAVING, 4 * weight);
         }
@@ -625,13 +716,16 @@ public class ActivityDetector {
         }
         if (upper.equals("ANVIL")) bump(ActivityType.ANVIL, 18 * weight);
 
-        // ── Raw / cooked food signals ───────────────────────────────────
-        if (upper.startsWith("RAW_") || upper.startsWith("BEEF") || upper.startsWith("PORKCHOP")
-                || upper.startsWith("MUTTON") || upper.startsWith("CHICKEN") || upper.startsWith("RABBIT")
-                || upper.startsWith("COD") || upper.startsWith("SALMON") || upper.equals("TROPICAL_FISH")
-                || upper.equals("PUFFERFISH")) {
+        // ── Raw food signals (player wants to cook) ─────────────────────
+        // Use exact equals to avoid CHICKEN_SPAWN_EGG / COD_BUCKET false-positives.
+        boolean isRawMeat = upper.startsWith("RAW_")
+                || upper.equals("BEEF") || upper.equals("PORKCHOP") || upper.equals("MUTTON")
+                || upper.equals("CHICKEN") || upper.equals("RABBIT") || upper.equals("COD")
+                || upper.equals("SALMON") || upper.equals("TROPICAL_FISH") || upper.equals("PUFFERFISH");
+        if (isRawMeat) {
             bump(ActivityType.COOKING, 10 * weight);
             bump(ActivityType.SMELTING, 6 * weight);
+            bump(ActivityType.FOOD, 4 * weight);
         }
         if (upper.equals("BUCKET") || upper.equals("WATER_BUCKET") || upper.equals("LAVA_BUCKET")
                 || upper.equals("MILK_BUCKET") || upper.equals("POWDER_SNOW_BUCKET")) {
@@ -654,12 +748,112 @@ public class ActivityDetector {
         if (upper.equals("SNOWBALL") || upper.equals("EGG")) {
             bump(ActivityType.UTILITY, 4 * weight);
         }
-        if (upper.endsWith("_SPAWN_EGG")) {
-            bump(ActivityType.ANIMAL_FARMING, 10 * weight);
+        if (upper.equals("ENDER_PEARL") || upper.equals("ENDER_EYE") || upper.equals("EYE_OF_ENDER")) {
+            // Already bumped TELEPORT/END_EXPLORE above; nothing more here.
         }
-        if (upper.equals("HEART_OF_THE_SEA") || upper.equals("CONDUIT")) {
-            bump(ActivityType.OCEAN, 14 * weight);
-            bump(ActivityType.DIVING, 8 * weight);
+        if (upper.equals("SLIME_BALL")) {
+            bump(ActivityType.REDSTONE, 8 * weight);
+            bump(ActivityType.UTILITY, 4 * weight);
+        }
+        if (upper.equals("PHANTOM_MEMBRANE")) {
+            bump(ActivityType.ELYTRA, 8 * weight);
+            bump(ActivityType.UTILITY, 4 * weight);
+        }
+        if (upper.equals("SPONGE") || upper.equals("WET_SPONGE")) {
+            bump(ActivityType.DIVING, 16 * weight);
+            bump(ActivityType.OCEAN, 10 * weight);
+            bump(ActivityType.MONUMENT, 6 * weight);
+        }
+        if (upper.equals("ECHO_SHARD")) {
+            bump(ActivityType.COMPASS, 14 * weight);
+            bump(ActivityType.DEEP_DARK, 8 * weight);
+            bump(ActivityType.ANCIENT_CITY, 6 * weight);
+        }
+        if (upper.equals("RECOVERY_COMPASS")) {
+            bump(ActivityType.COMPASS, 22 * weight);
+        }
+        if (upper.equals("GOAT_HORN")) {
+            bump(ActivityType.UTILITY, 14 * weight);
+        }
+        if (upper.startsWith("MUSIC_DISC_")) {
+            bump(ActivityType.IDLE, 8 * weight);
+            bump(ActivityType.UTILITY, 6 * weight);
+        }
+        if (upper.equals("JUKEBOX") || upper.equals("NOTE_BLOCK")) {
+            bump(ActivityType.UTILITY, 8 * weight);
+        }
+        if (upper.equals("SNIFFER_EGG") || upper.equals("TURTLE_EGG")) {
+            bump(ActivityType.ANIMAL_FARMING, 12 * weight);
+            bump(ActivityType.BREEDING, 6 * weight);
+        }
+        if (upper.equals("OCHRE_FROGLIGHT") || upper.equals("VERDANT_FROGLIGHT")
+                || upper.equals("PEARLESCENT_FROGLIGHT")) {
+            bump(ActivityType.LIGHTING, 14 * weight);
+            bump(ActivityType.DECORATING, 10 * weight);
+        }
+        if (upper.equals("AMETHYST_SHARD") || upper.equals("AMETHYST_BLOCK")
+                || upper.equals("BUDDING_AMETHYST")) {
+            bump(ActivityType.AMETHYST_MINING, 16 * weight);
+            bump(ActivityType.DECORATING, 6 * weight);
+        }
+        if (upper.equals("GLOW_LICHEN") || upper.equals("SHROOMLIGHT")) {
+            bump(ActivityType.LIGHTING, 12 * weight);
+            bump(ActivityType.DECORATING, 8 * weight);
+        }
+        if (upper.equals("WITHER_ROSE")) {
+            bump(ActivityType.LANDSCAPING, 16 * weight);
+            bump(ActivityType.WITHERING, 6 * weight);
+        }
+        if (upper.equals("DRAGON_HEAD") || upper.equals("ZOMBIE_HEAD")
+                || upper.equals("SKELETON_SKULL") || upper.equals("WITHER_SKELETON_SKULL")
+                || upper.equals("CREEPER_HEAD") || upper.equals("PIGLIN_HEAD")
+                || upper.equals("PLAYER_HEAD")) {
+            bump(ActivityType.DECORATING, 12 * weight);
+        }
+        if (upper.endsWith("_BED")) {
+            bump(ActivityType.SLEEPING, 14 * weight);
+        }
+        if (upper.equals("CONDUIT") || upper.equals("HEART_OF_THE_SEA")
+                || upper.equals("NAUTILUS_SHELL")) {
+            bump(ActivityType.OCEAN, 18 * weight);
+            bump(ActivityType.DIVING, 12 * weight);
+            bump(ActivityType.MONUMENT, 6 * weight);
+        }
+        if (upper.equals("SCUTE") || upper.equals("TURTLE_SCUTE")) {
+            bump(ActivityType.OCEAN, 8 * weight);
+            bump(ActivityType.ANIMAL_FARMING, 4 * weight);
+        }
+        if (upper.equals("RABBIT_FOOT")) {
+            bump(ActivityType.BREWING, 14 * weight);
+        }
+        if (upper.equals("DRAGON_BREATH")) {
+            bump(ActivityType.ALCHEMY, 16 * weight);
+        }
+        if (upper.equals("MAGMA_CREAM")) {
+            bump(ActivityType.BREWING, 12 * weight);
+            bump(ActivityType.NETHER, 4 * weight);
+        }
+        if (upper.equals("SHULKER_SHELL") || upper.endsWith("_SHULKER_BOX")
+                || upper.equals("SHULKER_BOX")) {
+            bump(ActivityType.ENDER, 14 * weight);
+        }
+        if (upper.equals("END_CRYSTAL")) {
+            bump(ActivityType.DRAGON, 12 * weight);
+            bump(ActivityType.END, 6 * weight);
+        }
+        if (upper.equals("BUNDLE")) {
+            bump(ActivityType.UTILITY, 10 * weight);
+        }
+        if (upper.endsWith("_SPAWN_EGG")) {
+            // Parse entity name from item id (e.g. pig_spawn_egg → PIG) so
+            // substring traps like "PIG" matching PIGLIN never happen.
+            String base = upper.substring(0, upper.length() - "_SPAWN_EGG".length());
+            if (FRIENDLY_SPAWN_EGG_MOBS.contains(base)) {
+                bump(ActivityType.ANIMAL_FARMING, 12 * weight);
+                bump(ActivityType.BREEDING, 6 * weight);
+            } else {
+                bump(ActivityType.UTILITY, 4 * weight);
+            }
         }
         if (upper.equals("LIGHTNING_ROD")) {
             bump(ActivityType.REDSTONE, 8 * weight);

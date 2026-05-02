@@ -21,15 +21,26 @@ public class FlowHudRenderer {
 
         ActivityType activity = FlowInventoryMod.activityDetector.getCurrentActivity();
 
-        String text = activity.icon + " " + activity.displayName;
+        // While the player is inside the force-override window (just pressed
+        // G/V) prepend a small lock + remaining seconds so they can see why
+        // auto-detection isn't fighting them.
+        boolean locked = FlowInventoryMod.activityDetector.isInForceOverride();
+        int lockSeconds = locked
+                ? FlowInventoryMod.activityDetector.getForceOverrideRemainingSeconds()
+                : 0;
+
+        String text = (locked ? "\uD83D\uDD12 " : "") + activity.icon + " " + activity.displayName
+                + (locked ? " (" + lockSeconds + "s)" : "");
 
         int screenWidth = context.getScaledWindowWidth();
 
-        int x = screenWidth - BOX_WIDTH - MARGIN;
+        int width = Math.max(BOX_WIDTH, client.textRenderer.getWidth(text) + 10);
+        int x = screenWidth - width - MARGIN;
         int y = MARGIN + 2;
 
-        // Draw background
-        context.fill(x, y, x + BOX_WIDTH, y + BOX_HEIGHT, BG_COLOR);
+        // Draw background (slight tint when locked so the player notices)
+        int bg = locked ? 0xAA222244 : BG_COLOR;
+        context.fill(x, y, x + width, y + BOX_HEIGHT, bg);
 
         // Draw text
         context.drawText(
@@ -37,7 +48,7 @@ public class FlowHudRenderer {
                 text,
                 x + 5,
                 y + 4,
-                0xFFFFFFFF,
+                locked ? 0xFFFFCC55 : 0xFFFFFFFF,
                 true
         );
     }
