@@ -1,5 +1,6 @@
 package com.flowinventory.server;
 
+import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.profiles.ActivityType;
 import com.flowinventory.profiles.HotbarPreset;
 import com.flowinventory.profiles.ProfileManager;
@@ -36,8 +37,13 @@ public class HotbarSwapper {
         if (player == null || newActivity == null) return;
 
         HotbarPreset preset = ProfileManager.getPreset(newActivity);
+
+        // Empty preset → only consider selecting a more appropriate slot
+        // (and only if the preset explicitly allows it).
         if (preset == null || preset.slots == null || preset.slots.isEmpty()) {
-            ensurePrimarySlotSelected(player, newActivity, null);
+            if (preset == null || preset.allowSlotOverride) {
+                ensurePrimarySlotSelected(player, newActivity, null);
+            }
             return;
         }
 
@@ -55,6 +61,9 @@ public class HotbarSwapper {
         Set<Integer> lockedSlots = new HashSet<>();
         if (playerHoldsValidPrimary) lockedSlots.add(playerSlot);
 
+        int swapsPerformed = 0;
+        boolean foundAnyMatch = false;
+
         // ── Step 2: arrange every preset slot
         for (Map.Entry<Integer, String> entry : preset.slots.entrySet()) {
             int targetSlot = entry.getKey();
@@ -66,6 +75,7 @@ public class HotbarSwapper {
             int currentScore = currentInTarget.isEmpty()
                     ? -1
                     : ItemHeuristics.evaluate(currentInTarget, desiredType);
+            if (currentScore > 0) foundAnyMatch = true;
             if (!currentInTarget.isEmpty()
                     && ItemStack.canCombine(currentInTarget, originallyHeld)
                     && currentScore > 0) {
@@ -79,6 +89,7 @@ public class HotbarSwapper {
             }
 
             int bestScore = ItemHeuristics.evaluate(inventory.getStack(bestSlot), desiredType);
+            if (bestScore > 0) foundAnyMatch = true;
             if (ItemStack.canCombine(inventory.getStack(bestSlot), originallyHeld) && bestScore > 0) {
                 bestScore += 1000;
             }
@@ -101,6 +112,7 @@ public class HotbarSwapper {
                     inventory.setStack(bestSlot, ItemStack.EMPTY);
                 }
                 lockedSlots.add(targetSlot);
+                swapsPerformed++;
             } else if (currentScore > 0) {
                 lockedSlots.add(targetSlot);
             }
@@ -112,11 +124,47 @@ public class HotbarSwapper {
         }
 
         // ── Step 4: select the right slot (respecting player's choice)
-        if (preset.allowSlotOverride) {
+        if (preset.allowSlotOverride && foundAnyMatch) {
             ensurePrimarySlotSelected(player, newActivity, preset);
         }
 
+        // ── Step 5: tidy up — merge any partial stacks the swap created
+        if (swapsPerformed > 0) {
+            mergeStacksInPlace(inventory);
+        }
+
+        if (!foundAnyMatch) {
+            FlowInventoryMod.LOGGER.debug(
+                    "[FlowInventory] Activity {} requested but no matching items in inventory \u2014 leaving hotbar untouched",
+                    newActivity.displayName
+            );
+        }
+
         player.playerScreenHandler.syncState();
+    }
+
+    /**
+     * Best-effort consolidation pass — combines any partial stacks of the
+     * same item that the swap may have created. Doesn't move things across
+     * categories, only collapses fragmentation.
+     */
+    private static void mergeStacksInPlace(PlayerInventory inventory) {
+        for (int i = 0; i < 36; i++) {
+            ItemStack a = inventory.getStack(i);
+            if (a.isEmpty() || a.getCount() >= a.getMaxCount()) continue;
+            for (int j = i + 1; j < 36; j++) {
+                ItemStack b = inventory.getStack(j);
+                if (b.isEmpty()) continue;
+                if (!ItemStack.canCombine(a, b)) continue;
+                int space = a.getMaxCount() - a.getCount();
+                int move = Math.min(space, b.getCount());
+                if (move <= 0) continue;
+                a.increment(move);
+                b.decrement(move);
+                if (b.isEmpty()) inventory.setStack(j, ItemStack.EMPTY);
+                if (a.getCount() >= a.getMaxCount()) break;
+            }
+        }
     }
 
     /**

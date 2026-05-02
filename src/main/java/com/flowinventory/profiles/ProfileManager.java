@@ -1053,8 +1053,11 @@ public class ProfileManager {
                 .add(6, "COMPASS")
                 .add(7, "ENDER_PEARL")
                 .add(8, "FOOD"));
-        PRESETS.put(ActivityType.AFK, PRESETS.get(ActivityType.GENERAL));
-        PRESETS.put(ActivityType.IDLE, PRESETS.get(ActivityType.GENERAL));
+        // IDLE / AFK are intentionally no-ops: an empty preset combined with
+        // noSlotOverride() means the swapper won't move items or change the
+        // selected slot when the player is just standing around.
+        PRESETS.put(ActivityType.AFK, new HotbarPreset().noSlotOverride());
+        PRESETS.put(ActivityType.IDLE, new HotbarPreset().noSlotOverride());
 
         // ==================== EMERGENCY / VITAL PRESETS ====================
 

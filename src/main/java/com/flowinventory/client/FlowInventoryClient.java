@@ -2,7 +2,9 @@ package com.flowinventory.client;
 
 import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.core.InventoryManager;
+import com.flowinventory.core.InventoryScanner;
 import com.flowinventory.network.NetworkHandler;
+import com.flowinventory.profiles.ActivityCycle;
 import com.flowinventory.profiles.ActivityType;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -12,6 +14,7 @@ import net.fabricmc.fabric.api.client.screen.v1.ScreenKeyboardEvents;
 import net.minecraft.client.gui.screen.ingame.InventoryScreen;
 import net.minecraft.client.option.KeyBinding;
 import net.minecraft.client.util.InputUtil;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.text.Text;
 import org.lwjgl.glfw.GLFW;
 
@@ -73,28 +76,14 @@ public class FlowInventoryClient implements ClientModInitializer {
                 FlowInventoryMod.LOGGER.info("[FlowInventory] Sort packet sent!");
             }
             
-            // Next profile (G)
+            // Next profile (G) — smart cycle that skips activities the player has no items for
             while (KEY_NEXT_PROFILE.wasPressed()) {
-                ActivityType next = FlowInventoryMod.activityDetector.getCurrentActivity().next();
-                FlowInventoryMod.activityDetector.forceSetActivity(next);
-                client.player.sendMessage(
-                    Text.literal("Profile: " + FlowInventoryMod.activityDetector.getCurrentActivity().displayName)
-                        .styled(style -> style.withColor(0x44FF44)),
-                    true
-                );
+                cycleProfile(client.player, true);
             }
-            
-            // Previous profile (V)
+
+            // Previous profile (V) — same smart cycle, reversed
             while (KEY_PREV_PROFILE.wasPressed()) {
-                ActivityType current = FlowInventoryMod.activityDetector.getCurrentActivity();
-                ActivityType[] values = ActivityType.values();
-                ActivityType prev = values[(current.ordinal() - 1 + values.length) % values.length];
-                FlowInventoryMod.activityDetector.forceSetActivity(prev);
-                client.player.sendMessage(
-                    Text.literal("Profile: " + FlowInventoryMod.activityDetector.getCurrentActivity().displayName)
-                        .styled(style -> style.withColor(0x44FF44)),
-                    true
-                );
+                cycleProfile(client.player, false);
             }
             
             // Toggle auto-detect (B)
@@ -128,5 +117,55 @@ public class FlowInventoryClient implements ClientModInitializer {
             .register((context, tickDelta) -> {
                 new FlowHudRenderer().render(context, tickDelta);
             });
+    }
+
+    /**
+     * Walks the curated cycle list in the requested direction and stops at
+     * the first activity for which the player owns at least the primary
+     * item. Falls back to GENERAL if literally nothing matches.
+     */
+    private static void cycleProfile(PlayerEntity player, boolean forward) {
+        if (player == null) return;
+
+        ActivityType current = FlowInventoryMod.activityDetector.getCurrentActivity();
+        int size = ActivityCycle.DEFAULT.size();
+        int startIdx = ActivityCycle.indexOf(current);
+        if (startIdx == -1) startIdx = forward ? -1 : 0;
+
+        ActivityType picked = null;
+        for (int i = 1; i <= size; i++) {
+            int idx = forward
+                    ? (startIdx + i + size) % size
+                    : (startIdx - i + size) % size;
+            ActivityType candidate = ActivityCycle.DEFAULT.get(idx);
+            if (candidate == current) continue;
+            if (InventoryScanner.canUseActivity(player, candidate)) {
+                picked = candidate;
+                break;
+            }
+        }
+
+        if (picked == null) {
+            // Nothing in the cycle is usable — degrade to GENERAL gracefully
+            picked = ActivityType.GENERAL;
+            if (current == ActivityType.GENERAL) {
+                player.sendMessage(
+                        Text.literal("\u26A0 No usable profile found in your inventory")
+                                .styled(s -> s.withColor(0xFFAA00)),
+                        true
+                );
+                return;
+            }
+        }
+
+        FlowInventoryMod.activityDetector.forceSetActivity(picked);
+
+        int matches = InventoryScanner.countMatchingPresetSlots(player, picked);
+        String label = "Profile: " + picked.icon + " " + picked.displayName
+                + " (" + matches + " items ready)";
+        player.sendMessage(
+                Text.literal(label).styled(s -> s.withColor(0x44FF44)),
+                true
+        );
     }
 }

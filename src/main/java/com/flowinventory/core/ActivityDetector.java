@@ -3,6 +3,7 @@ package com.flowinventory.core;
 import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.network.NetworkHandler;
 import com.flowinventory.profiles.ActivityType;
+// InventoryScanner sits in the same package, so no import needed.
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
@@ -169,6 +170,12 @@ public class ActivityDetector {
             return; // skip the normal flow this tick
         }
 
+        // 11b. Soft tool emergency — if the held tool is about to break and
+        //      the inventory has a fresher one of the same family, bias the
+        //      detector toward the matching activity so the swapper picks
+        //      the spare tool. We only nudge here, we don't force-switch.
+        nudgeToolDurabilityEmergency(player, held);
+
         // 12. Pick the winner above the confidence threshold
         Map.Entry<ActivityType, Integer> winner = activityWeights.entrySet().stream()
                 .max(Comparator.comparingInt(Map.Entry::getValue))
@@ -177,6 +184,13 @@ public class ActivityDetector {
         ActivityType detected = (winner != null && winner.getValue() >= scaledThreshold())
                 ? winner.getKey()
                 : ActivityType.GENERAL;
+
+        // 12b. If the player has nothing matching this activity, don't bother
+        //      switching — degrade to GENERAL to avoid the "ghost activity"
+        //      glitch where the HUD claims something the inventory can't back.
+        if (detected != ActivityType.GENERAL && !InventoryScanner.canUseActivity(player, detected)) {
+            detected = ActivityType.GENERAL;
+        }
 
         // 13. Debounce — require N consecutive ticks before switching
         if (detected == pendingActivity) {
@@ -273,6 +287,42 @@ public class ActivityDetector {
             if (isCombatReady(s)) return i;
         }
         return -1;
+    }
+
+    // ==================== TOOL DURABILITY ====================
+
+    /**
+     * Nudges the activity score so the swapper picks a fresh tool when the
+     * held one is about to break. Doesn't force a switch on its own.
+     */
+    private void nudgeToolDurabilityEmergency(PlayerEntity player, ItemStack held) {
+        if (held == null || held.isEmpty() || !held.isDamageable()) return;
+        int remaining = held.getMaxDamage() - held.getDamage();
+        if (remaining > 5) return;
+        if (InventoryScanner.findFresherTool(player, held) < 0) return;
+
+        String path = Registries.ITEM.getId(held.getItem()).getPath();
+        if (path.contains("pickaxe")) {
+            bump(ActivityType.MINING, 60);
+        } else if (path.contains("axe") && !path.contains("pickaxe")) {
+            bump(ActivityType.WOODWORKING, 60);
+        } else if (path.contains("shovel")) {
+            bump(ActivityType.DIRT, 60);
+        } else if (path.contains("hoe")) {
+            bump(ActivityType.FARMING, 60);
+        } else if (path.contains("sword")) {
+            bump(ActivityType.SWORD_COMBAT, 60);
+        } else if (path.contains("bow") && !path.contains("crossbow")) {
+            bump(ActivityType.ARCHERY, 60);
+        } else if (path.contains("crossbow")) {
+            bump(ActivityType.CROSSBOW_COMBAT, 60);
+        } else if (path.contains("trident")) {
+            bump(ActivityType.TRIDENT_COMBAT, 60);
+        } else if (path.contains("fishing_rod")) {
+            bump(ActivityType.FISHING, 60);
+        } else if (path.contains("shears")) {
+            bump(ActivityType.SHEEP_FARMING, 60);
+        }
     }
 
     // ==================== SCROLL TRACKING ====================
