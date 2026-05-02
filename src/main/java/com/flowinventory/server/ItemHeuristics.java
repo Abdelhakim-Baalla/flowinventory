@@ -923,6 +923,175 @@ public class ItemHeuristics {
                 if (itemPath.contains("golden_apple")) return 60;
                 return -1;
 
+            // ──────────────── Block-material types ──────────────────────
+            case "LOG":
+                if (itemPath.endsWith("_log") || itemPath.endsWith("_stem")
+                        || itemPath.endsWith("_wood") || itemPath.endsWith("_hyphae")) return 100;
+                if (itemPath.endsWith("_planks")) return 50;
+                return -1;
+
+            case "LEAVES":
+                if (itemPath.endsWith("_leaves") || itemPath.equals("azalea_leaves")
+                        || itemPath.equals("flowering_azalea_leaves")) return 100;
+                return -1;
+
+            case "SAPLING":
+                if (itemPath.endsWith("_sapling") || itemPath.endsWith("_propagule")) return 100;
+                return -1;
+
+            case "PUMPKIN":
+                if (itemPath.equals("pumpkin") || itemPath.equals("carved_pumpkin")
+                        || itemPath.equals("jack_o_lantern")) return 100;
+                if (itemPath.equals("pumpkin_pie")) return 50;
+                return -1;
+
+            case "WEB":
+                if (itemPath.equals("cobweb")) return 100;
+                if (itemPath.equals("string")) return 60;
+                return -1;
+
+            case "CONDUIT":
+                if (itemPath.equals("conduit")) return 100;
+                if (itemPath.equals("heart_of_the_sea")) return 70;
+                if (itemPath.equals("nautilus_shell")) return 50;
+                return -1;
+
+            // ──────────────── Light / fire / candle ──────────────────────
+            case "FLINT_AND_STEEL":
+                if (itemPath.equals("flint_and_steel")) return 100;
+                if (itemPath.equals("fire_charge")) return 60;
+                return -1;
+
+            case "FIRE_CHARGE":
+                if (itemPath.equals("fire_charge")) return 100;
+                if (itemPath.equals("flint_and_steel")) return 70;
+                return -1;
+
+            case "CANDLE":
+                if (itemPath.endsWith("candle") || itemPath.endsWith("candle_cake")) return 100;
+                return -1;
+
+            case "REDSTONE_TORCH":
+                if (itemPath.equals("redstone_torch")) return 100;
+                if (itemPath.equals("torch") || itemPath.equals("soul_torch")) return 40;
+                return -1;
+
+            case "LIGHTNING_ROD":
+                if (itemPath.equals("lightning_rod")) return 100;
+                return -1;
+
+            // ──────────────── Throwables / random ────────────────────────
+            case "SNOW_BALL":
+            case "SNOWBALL":
+                if (itemPath.equals("snowball")) return 100;
+                if (itemPath.equals("snow_block") || itemPath.equals("snow")) return 60;
+                return -1;
+
+            case "EGG_THROW":
+                if (itemPath.equals("egg")) return 100;
+                if (itemPath.equals("snowball")) return 60;
+                return -1;
+
+            case "BREEZE_EGG":
+                if (itemPath.equals("breeze_spawn_egg")) return 100;
+                if (itemPath.endsWith("_spawn_egg")) return 60;
+                return -1;
+
+            // ──────────────── Lapis / metals ─────────────────────────────
+            case "LAPIS":
+                if (itemPath.equals("lapis_lazuli")) return 100;
+                if (itemPath.equals("lapis_block")) return 90;
+                if (itemPath.equals("lapis_ore") || itemPath.equals("deepslate_lapis_ore")) return 60;
+                return -1;
+
+            case "INGOT":
+                if (itemPath.endsWith("_ingot")) return 100;
+                if (itemPath.endsWith("_nugget")) return 50;
+                if (itemPath.endsWith("_block") && (
+                        itemPath.contains("iron") || itemPath.contains("gold")
+                                || itemPath.contains("netherite") || itemPath.contains("copper"))) return 70;
+                return -1;
+
+            case "IRON_INGOT":
+                if (itemPath.equals("iron_ingot")) return 100;
+                if (itemPath.equals("iron_block")) return 85;
+                if (itemPath.equals("iron_nugget")) return 55;
+                return -1;
+
+            case "COPPER_INGOT":
+                if (itemPath.equals("copper_ingot")) return 100;
+                if (itemPath.equals("copper_block")) return 85;
+                return -1;
+
+            case "COAL":
+                if (itemPath.equals("coal")) return 100;
+                if (itemPath.equals("charcoal")) return 95;
+                if (itemPath.equals("coal_block")) return 80;
+                return -1;
+
+            // ──────────────── Armor specifics ────────────────────────────
+            case "LEATHER_BOOTS":
+                if (itemPath.equals("leather_boots")) return 100;
+                if (item instanceof ArmorItem armor && armor.getType() == ArmorItem.Type.BOOTS) return 70;
+                return -1;
+
+            case "TURTLE_HELMET":
+                if (itemPath.equals("turtle_helmet")) return 100;
+                if (item instanceof ArmorItem armor && armor.getType() == ArmorItem.Type.HELMET) return 60;
+                return -1;
+
+            // ──────────────── Workstation block items ────────────────────
+            case "CRAFTING_TABLE":
+                if (itemPath.equals("crafting_table")) return 100;
+                return -1;
+
+            case "ENCHANTING_TABLE":
+                if (itemPath.equals("enchanting_table")) return 100;
+                return -1;
+
+            case "BREWING_STAND":
+                if (itemPath.equals("brewing_stand")) return 100;
+                return -1;
+
+            case "SMITHING_TABLE":
+                if (itemPath.equals("smithing_table")) return 100;
+                return -1;
+
+            case "CARTOGRAPHY_TABLE":
+                if (itemPath.equals("cartography_table")) return 100;
+                return -1;
+
+            // ──────────────── Misc materials ─────────────────────────────
+            case "SHELL":
+                if (itemPath.equals("nautilus_shell")) return 100;
+                if (itemPath.equals("scute")) return 90;
+                if (itemPath.equals("turtle_scute")) return 90;
+                return -1;
+
+            case "FEATHER":
+                if (itemPath.equals("feather")) return 100;
+                return -1;
+
+            case "STRING":
+                if (itemPath.equals("string")) return 100;
+                if (itemPath.equals("cobweb")) return 60;
+                return -1;
+
+            case "BONE":
+                if (itemPath.equals("bone")) return 100;
+                if (itemPath.equals("bone_meal")) return 80;
+                if (itemPath.equals("bone_block")) return 60;
+                return -1;
+
+            // ──────────────── Pottery / brushable ────────────────────────
+            case "BRUSH":
+                if (itemPath.equals("brush")) return 100;
+                return -1;
+
+            case "POT_SHARD":
+                if (itemPath.endsWith("_pottery_sherd")) return 100;
+                return -1;
+
             default:
                 return getFallbackScore(item, type);
         }
@@ -1117,22 +1286,37 @@ public class ItemHeuristics {
         return baseScore + tierBonus;
     }
 
+    /**
+     * Strict, type-aware fallback. Only returns a positive score when the
+     * item path actually relates to the requested type — never a blanket
+     * positive for unknown types (that was a bug that let, say, a cobblestone
+     * pretend to be a "DRAGON_BREATH" because the old fallback returned 30
+     * unconditionally).
+     */
     private static int getFallbackScore(Item item, String type) {
-        // Generic fallback score for unrecognized items
+        if (type == null || type.isEmpty()) return -1;
+
         String itemId = Registries.ITEM.getId(item).toString();
         String path = new Identifier(itemId).getPath();
-        
-        // Simple string-based checks as fallback
-        if (path.contains("wool")) return 55;
-        if (path.contains("log") || path.contains("wood")) return 65;
-        if (path.contains("plank")) return 60;
-        if (path.contains("door")) return 50;
-        if (path.contains("stairs")) return 52;
-        if (path.contains("slab")) return 48;
-        if (path.contains("sapling")) return 88;
-        if (path.contains("leaves")) return 42;
-        if (path.contains("flower")) return 68;
-        
-        return 30;
+        String typeKey = type.toLowerCase();
+
+        // 1. Direct substring match: type appears in the item path
+        //    (handles e.g. type "OAK_LOG" against item "oak_log").
+        if (path.equals(typeKey)) return 100;
+        if (path.contains(typeKey)) return 75;
+
+        // 2. Type appears in the item path with separators stripped
+        String pathStripped = path.replace("_", "");
+        String typeStripped = typeKey.replace("_", "");
+        if (pathStripped.contains(typeStripped)) return 60;
+
+        // 3. Plural / singular forgiveness ("STAIRS" vs "stair")
+        if (typeKey.endsWith("s") && pathStripped.contains(typeStripped.substring(0, typeStripped.length() - 1))) {
+            return 55;
+        }
+
+        // No relationship — explicitly NOT a match. This is intentional;
+        // returning a positive score for unrelated items was the bug.
+        return -1;
     }
 }

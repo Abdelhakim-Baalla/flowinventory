@@ -56,14 +56,19 @@ public final class InventoryScanner {
     }
 
     /**
-     * Returns true if the activity is meaningful for this player right now —
-     * either it has no preset (treated as always-usable) or at least the
-     * primary item type from the preset exists in the inventory.
+     * Returns true if the activity is meaningful for this player right now.
+     * <p>
+     * The check is intentionally lenient: if ANY of the preset's slots OR
+     * the off-hand item type has a positive heuristic match anywhere in the
+     * player's inventory (main, hotbar, off-hand or armor), the activity is
+     * considered usable. This avoids the "ghost activity" where the player
+     * holds an oak log but the system rejects WOODWORKING because the
+     * preset's primary slot is "AXE".
      */
     public static boolean canUseActivity(PlayerEntity player, ActivityType activity) {
         if (player == null || activity == null) return false;
 
-        // These never need items
+        // These activities never need items
         switch (activity) {
             case GENERAL:
             case UNKNOWN:
@@ -83,9 +88,14 @@ public final class InventoryScanner {
             return true;
         }
 
-        String primaryType = preset.slots.get(0);
-        if (primaryType == null) return true;
-        return hasItem(player, primaryType);
+        Set<String> seen = new HashSet<>();
+        for (String type : preset.slots.values()) {
+            if (type == null || !seen.add(type)) continue;
+            if (hasItem(player, type)) return true;
+        }
+        if (preset.offHandType != null && hasItem(player, preset.offHandType)) return true;
+
+        return false;
     }
 
     /** How many distinct preset slots the player has matching items for. */

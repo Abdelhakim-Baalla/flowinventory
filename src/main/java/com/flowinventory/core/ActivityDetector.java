@@ -188,7 +188,12 @@ public class ActivityDetector {
         // 12b. If the player has nothing matching this activity, don't bother
         //      switching — degrade to GENERAL to avoid the "ghost activity"
         //      glitch where the HUD claims something the inventory can't back.
-        if (detected != ActivityType.GENERAL && !InventoryScanner.canUseActivity(player, detected)) {
+        //      But: never override an activity whose primary signal is the
+        //      held or off-hand item itself (otherwise holding an oak log
+        //      would fall back to GENERAL just because the player has no axe).
+        if (detected != ActivityType.GENERAL
+                && !InventoryScanner.canUseActivity(player, detected)
+                && !heldOrOffhandFitsActivity(player, detected)) {
             detected = ActivityType.GENERAL;
         }
 
@@ -287,6 +292,31 @@ public class ActivityDetector {
             if (isCombatReady(s)) return i;
         }
         return -1;
+    }
+
+    /**
+     * True if the player's held or off-hand item is, by itself, a useful
+     * input for the activity (matches at least one of its preset slots).
+     * Used to avoid the GENERAL fall-back when the player explicitly chose
+     * to hold something relevant.
+     */
+    private static boolean heldOrOffhandFitsActivity(PlayerEntity player, ActivityType activity) {
+        com.flowinventory.profiles.HotbarPreset preset =
+                com.flowinventory.profiles.ProfileManager.getPreset(activity);
+        if (preset == null || preset.slots == null) return false;
+
+        ItemStack held = player.getMainHandStack();
+        ItemStack offhand = player.getOffHandStack();
+        if ((held == null || held.isEmpty()) && (offhand == null || offhand.isEmpty())) return false;
+
+        for (String type : preset.slots.values()) {
+            if (type == null) continue;
+            if (held != null && !held.isEmpty()
+                    && com.flowinventory.server.ItemHeuristics.evaluate(held, type) > 0) return true;
+            if (offhand != null && !offhand.isEmpty()
+                    && com.flowinventory.server.ItemHeuristics.evaluate(offhand, type) > 0) return true;
+        }
+        return false;
     }
 
     // ==================== TOOL DURABILITY ====================
@@ -433,12 +463,15 @@ public class ActivityDetector {
 
         if (item instanceof net.minecraft.item.BlockItem) {
             bump(ActivityType.BUILDING, 8 * weight);
-            if (upper.contains("PLANK") || upper.contains("LOG") || upper.contains("WOOD")) {
-                bump(ActivityType.WOODWORKING, 12 * weight);
+            if (upper.contains("PLANK") || upper.contains("LOG") || upper.contains("WOOD")
+                    || upper.endsWith("_STEM") || upper.contains("HYPHAE")) {
+                bump(ActivityType.WOODWORKING, 14 * weight);
             }
             if (upper.contains("STONE") || upper.contains("BRICK") || upper.contains("COBBLESTONE")
-                    || upper.contains("DEEPSLATE") || upper.contains("BLACKSTONE")) {
-                bump(ActivityType.STONEMASONRY, 10 * weight);
+                    || upper.contains("DEEPSLATE") || upper.contains("BLACKSTONE")
+                    || upper.contains("ANDESITE") || upper.contains("DIORITE") || upper.contains("GRANITE")
+                    || upper.contains("TUFF") || upper.contains("CALCITE") || upper.contains("BASALT")) {
+                bump(ActivityType.STONEMASONRY, 12 * weight);
             }
             if (upper.contains("TERRACOTTA")) bump(ActivityType.TERRACOTTA, 14 * weight);
             if (upper.contains("CONCRETE")) bump(ActivityType.CONCRETE, 14 * weight);
@@ -446,9 +479,31 @@ public class ActivityDetector {
             if (upper.contains("WOOL") || upper.contains("CARPET")) bump(ActivityType.DECORATING, 12 * weight);
             if (upper.contains("SCULK")) bump(ActivityType.SCULKING, 14 * weight);
             if (upper.contains("BANNER")) bump(ActivityType.DECORATION_BANNER, 14 * weight);
+            if (upper.contains("PAINTING") || upper.contains("ITEM_FRAME")) {
+                bump(ActivityType.DECORATION_PAINTER, 14 * weight);
+            }
+            if (upper.contains("LEAVES") || upper.contains("SAPLING") || upper.contains("FLOWER")
+                    || upper.contains("ROSE") || upper.contains("TULIP") || upper.contains("DAISY")
+                    || upper.contains("ORCHID") || upper.contains("DANDELION") || upper.contains("POPPY")
+                    || upper.contains("LILAC") || upper.contains("PEONY") || upper.contains("LILY")
+                    || upper.contains("SUNFLOWER") || upper.contains("BLUET") || upper.contains("AZURE")) {
+                bump(ActivityType.LANDSCAPING, 14 * weight);
+                bump(ActivityType.DECORATING, 6 * weight);
+            }
+            if (upper.contains("SAPLING") || upper.contains("PROPAGULE")) {
+                bump(ActivityType.TREE_FARMING, 14 * weight);
+            }
+            if (upper.contains("PUMPKIN") || upper.contains("MELON") || upper.contains("HAY")) {
+                bump(ActivityType.CROP_FARMING, 8 * weight);
+            }
             if (upper.contains("STAIRS") || upper.contains("SLAB") || upper.contains("WALL")
                     || upper.contains("FENCE") || upper.contains("DOOR") || upper.contains("TRAPDOOR")) {
-                bump(ActivityType.BUILDING, 6 * weight);
+                bump(ActivityType.BUILDING, 8 * weight);
+                bump(ActivityType.ROOFING, 6 * weight);
+            }
+            if (upper.contains("CANDLE")) {
+                bump(ActivityType.LIGHTING, 10 * weight);
+                bump(ActivityType.DECORATING, 6 * weight);
             }
         }
 
@@ -543,6 +598,78 @@ public class ActivityDetector {
         if (upper.equals("NETHERRACK")) bump(ActivityType.NETHERRACK, 12 * weight);
         if (upper.contains("END_STONE") || upper.contains("PURPUR") || upper.contains("CHORUS")) {
             bump(ActivityType.END_STONE, 12 * weight);
+        }
+
+        // ── Resources / smithing / crafting signals ─────────────────────
+        if (upper.endsWith("_INGOT") || upper.endsWith("_NUGGET")) {
+            bump(ActivityType.SMITHING, 10 * weight);
+            bump(ActivityType.SMELTING, 6 * weight);
+        }
+        if (upper.equals("LAPIS_LAZULI")) {
+            bump(ActivityType.ENCHANTING, 16 * weight);
+        }
+        if (upper.equals("EMERALD")) {
+            bump(ActivityType.TRADING, 14 * weight);
+        }
+        if (upper.equals("DIAMOND") || upper.equals("NETHERITE_INGOT")
+                || upper.equals("SMITHING_TEMPLATE") || upper.endsWith("_TEMPLATE")) {
+            bump(ActivityType.SMITHING, 14 * weight);
+        }
+        if (upper.equals("CRAFTING_TABLE") || upper.equals("FURNACE") || upper.equals("SMOKER")
+                || upper.equals("BLAST_FURNACE") || upper.equals("SMITHING_TABLE")
+                || upper.equals("ANVIL") || upper.equals("CHIPPED_ANVIL") || upper.equals("DAMAGED_ANVIL")
+                || upper.equals("STONECUTTER") || upper.equals("LOOM") || upper.equals("CARTOGRAPHY_TABLE")
+                || upper.equals("GRINDSTONE") || upper.equals("COMPOSTER")
+                || upper.equals("ENCHANTING_TABLE") || upper.equals("BREWING_STAND")) {
+            bump(ActivityType.UTILITY, 10 * weight);
+        }
+        if (upper.equals("ANVIL")) bump(ActivityType.ANVIL, 18 * weight);
+
+        // ── Raw / cooked food signals ───────────────────────────────────
+        if (upper.startsWith("RAW_") || upper.startsWith("BEEF") || upper.startsWith("PORKCHOP")
+                || upper.startsWith("MUTTON") || upper.startsWith("CHICKEN") || upper.startsWith("RABBIT")
+                || upper.startsWith("COD") || upper.startsWith("SALMON") || upper.equals("TROPICAL_FISH")
+                || upper.equals("PUFFERFISH")) {
+            bump(ActivityType.COOKING, 10 * weight);
+            bump(ActivityType.SMELTING, 6 * weight);
+        }
+        if (upper.equals("BUCKET") || upper.equals("WATER_BUCKET") || upper.equals("LAVA_BUCKET")
+                || upper.equals("MILK_BUCKET") || upper.equals("POWDER_SNOW_BUCKET")) {
+            bump(ActivityType.BUCKET_USE, 8 * weight);
+        }
+
+        // ── Light / fire ────────────────────────────────────────────────
+        if (upper.equals("FIRE_CHARGE")) bump(ActivityType.LIGHTING, 10 * weight);
+
+        // ── Misc dyes / decoration ──────────────────────────────────────
+        if (upper.endsWith("_DYE") || upper.equals("INK_SAC") || upper.equals("GLOW_INK_SAC")
+                || upper.equals("BONE_MEAL")) {
+            bump(ActivityType.DECORATING, 6 * weight);
+        }
+        if (upper.contains("PAINTING") || upper.contains("ITEM_FRAME")) {
+            bump(ActivityType.DECORATING, 12 * weight);
+        }
+
+        // ── Throwables & utility ────────────────────────────────────────
+        if (upper.equals("SNOWBALL") || upper.equals("EGG")) {
+            bump(ActivityType.UTILITY, 4 * weight);
+        }
+        if (upper.endsWith("_SPAWN_EGG")) {
+            bump(ActivityType.ANIMAL_FARMING, 10 * weight);
+        }
+        if (upper.equals("HEART_OF_THE_SEA") || upper.equals("CONDUIT")) {
+            bump(ActivityType.OCEAN, 14 * weight);
+            bump(ActivityType.DIVING, 8 * weight);
+        }
+        if (upper.equals("LIGHTNING_ROD")) {
+            bump(ActivityType.REDSTONE, 8 * weight);
+            bump(ActivityType.DECORATING, 6 * weight);
+        }
+        if (upper.equals("BRUSH")) {
+            bump(ActivityType.EXPLORING, 14 * weight);
+        }
+        if (upper.endsWith("_POTTERY_SHERD")) {
+            bump(ActivityType.DECORATING, 10 * weight);
         }
     }
 

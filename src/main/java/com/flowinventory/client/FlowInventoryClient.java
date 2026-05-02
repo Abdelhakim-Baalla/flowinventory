@@ -146,7 +146,19 @@ public class FlowInventoryClient implements ClientModInitializer {
         }
 
         if (picked == null) {
-            // Nothing in the cycle is usable — degrade to GENERAL gracefully
+            // Nothing else in the cycle is usable.
+            //   - If the player is already on a usable activity, just say so.
+            //   - Otherwise degrade to GENERAL.
+            if (InventoryScanner.canUseActivity(player, current)) {
+                int matches = InventoryScanner.countMatchingPresetSlots(player, current);
+                player.sendMessage(
+                        Text.literal("\u2192 " + current.icon + " " + current.displayName
+                                + " is the only usable profile (" + matches + " items)")
+                                .styled(s -> s.withColor(0xFFAA00)),
+                        true
+                );
+                return;
+            }
             picked = ActivityType.GENERAL;
             if (current == ActivityType.GENERAL) {
                 player.sendMessage(

@@ -314,31 +314,31 @@ public class ProfileManager {
         // ==================== BUILDING PRESETS ====================
         
         PRESETS.put(ActivityType.BUILDING, new HotbarPreset()
-            .add(0, "AXE")
+            .add(0, "BLOCK")
             .add(1, "BLOCK")
             .add(2, "BLOCK")
-            .add(3, "BLOCK")
-            .add(4, "BLOCK")
-            .add(5, "BLOCK")
-            .add(6, "BLOCK")
-            .add(7, "PICKAXE")
+            .add(3, "STAIRS")
+            .add(4, "SLAB")
+            .add(5, "AXE")
+            .add(6, "PICKAXE")
+            .add(7, "SHOVEL")
             .add(8, "FOOD"));
-            
+
         PRESETS.put(ActivityType.WOODWORKING, new HotbarPreset()
-            .add(0, "AXE")
-            .add(1, "LOG")
-            .add(2, "PLANKS")
+            .add(0, "LOG")
+            .add(1, "PLANKS")
+            .add(2, "AXE")
             .add(3, "STAIRS")
             .add(4, "SLAB")
             .add(5, "DOOR")
             .add(6, "TRAPDOOR")
             .add(7, "FENCE")
             .add(8, "FOOD"));
-            
+
         PRESETS.put(ActivityType.STONEMASONRY, new HotbarPreset()
-            .add(0, "PICKAXE")
-            .add(1, "STONE")
-            .add(2, "STONE_BRICKS")
+            .add(0, "STONE")
+            .add(1, "STONE_BRICKS")
+            .add(2, "PICKAXE")
             .add(3, "STAIRS")
             .add(4, "SLAB")
             .add(5, "WALL")
@@ -767,7 +767,16 @@ public class ProfileManager {
         PRESETS.put(ActivityType.SCULKING, makeBuildingPreset("SCULK"));
         PRESETS.put(ActivityType.ROOFING, makeBuildingPreset("STAIRS"));
         PRESETS.put(ActivityType.FURNISHING, makeBuildingPreset("CARPET"));
-        PRESETS.put(ActivityType.LANDSCAPING, makeBuildingPreset("FLOWER"));
+        PRESETS.put(ActivityType.LANDSCAPING, new HotbarPreset()
+                .add(0, "FLOWER")
+                .add(1, "SAPLING")
+                .add(2, "LEAVES")
+                .add(3, "BONE_MEAL")
+                .add(4, "DYE")
+                .add(5, "SHOVEL")
+                .add(6, "AXE")
+                .add(7, "BLOCK")
+                .add(8, "FOOD"));
         PRESETS.put(ActivityType.DECORATION_PAINTER, makeBuildingPreset("PAINTING"));
         PRESETS.put(ActivityType.DECORATION_BANNER, makeBuildingPreset("BANNER"));
         PRESETS.put(ActivityType.DECORATION_LIGHTS, makeBuildingPreset("LANTERN"));
