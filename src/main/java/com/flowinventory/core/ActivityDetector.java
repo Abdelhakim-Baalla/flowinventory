@@ -21,7 +21,6 @@ import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
@@ -191,9 +190,9 @@ public class ActivityDetector {
         // 9. Nearby workstations & PvP players
         scoreFromBlocksAndPlayers(player);
 
-        // 10. Boost the current activity slightly to reduce flapping
+        // 10. Boost the current activity to reduce flapping (ties → same winner)
         if (currentActivity != ActivityType.GENERAL && currentActivity != ActivityType.UNKNOWN) {
-            activityWeights.merge(currentActivity, 12, Integer::sum);
+            activityWeights.merge(currentActivity, 22, Integer::sum);
         }
 
         // 11. Emergency check FIRST — bypasses every other rule, including
@@ -218,14 +217,30 @@ public class ActivityDetector {
         //      the spare tool. We only nudge here, we don't force-switch.
         nudgeToolDurabilityEmergency(player, held);
 
-        // 12. Pick the winner above the confidence threshold
-        Map.Entry<ActivityType, Integer> winner = activityWeights.entrySet().stream()
-                .max(Comparator.comparingInt(Map.Entry::getValue))
-                .orElse(null);
+        // 12. Pick the winner above the confidence threshold (deterministic tie-break:
+        //     same score → keep currentActivity if tied, else lowest enum ordinal)
+        int bestScore = 0;
+        for (int v : activityWeights.values()) {
+            if (v > bestScore) bestScore = v;
+        }
+        int threshold = scaledThreshold();
+        ActivityType winnerType = null;
+        if (bestScore >= threshold) {
+            for (ActivityType t : ActivityType.values()) {
+                int s = activityWeights.getOrDefault(t, 0);
+                if (s != bestScore) continue;
+                if (winnerType == null) {
+                    winnerType = t;
+                } else if (t == currentActivity) {
+                    winnerType = t;
+                } else if (winnerType != currentActivity && t.ordinal() < winnerType.ordinal()) {
+                    winnerType = t;
+                }
+            }
+        }
 
-        ActivityType detected = (winner != null && winner.getValue() >= scaledThreshold())
-                ? winner.getKey()
-                : ActivityType.GENERAL;
+        ActivityType detected = winnerType != null ? winnerType : ActivityType.GENERAL;
+        int scoreForLog = winnerType != null ? bestScore : 0;
 
         // 12b. If the player has nothing matching this activity, don't bother
         //      switching — degrade to GENERAL to avoid the "ghost activity"
@@ -257,7 +272,7 @@ public class ActivityDetector {
                     "[FlowInventory] Activity changed: {} -> {} (score {})",
                     previous.displayName,
                     currentActivity.displayName,
-                    winner != null ? winner.getValue() : 0
+                    scoreForLog
             );
 
             // Suppress auto-apply if the player just scrolled — they

@@ -5,8 +5,8 @@ import com.flowinventory.network.ActivityChangePacket;
 import com.flowinventory.network.SortInventoryPacket;
 import com.flowinventory.profiles.ActivityType;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
-import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 
@@ -52,6 +52,22 @@ public class FlowInventoryServer {
         
         FlowInventoryMod.LOGGER.info("[FlowInventory] Server packet handlers registered");
     }
+
+    /** Lower = earlier when sorting by {@code sortMode TIER}. */
+    private static int tierSortRank(Item item) {
+        if (item == null) return 99;
+        return switch (ItemDatabase.getTierName(item)) {
+            case "Netherite" -> 0;
+            case "Diamond" -> 1;
+            case "Iron" -> 2;
+            case "Chainmail" -> 3;
+            case "Gold" -> 4;
+            case "Stone" -> 5;
+            case "Leather" -> 6;
+            case "Wood" -> 7;
+            default -> 50;
+        };
+    }
     
     private static void sortInventory(ServerPlayerEntity player) {
         PlayerInventory inventory = player.getInventory();
@@ -68,21 +84,31 @@ public class FlowInventoryServer {
         }
         
         if (items.isEmpty()) return;
+
+        if (FlowInventoryMod.config.mergeStacks) {
+            items = mergeStacksAdvanced(items);
+        }
         
-        items = mergeStacksAdvanced(items);
-        
-        boolean isAlphabetical = "ALPHABETICAL".equalsIgnoreCase(FlowInventoryMod.config.sortMode);
+        String mode = FlowInventoryMod.config.sortMode;
+        boolean isAlphabetical = "ALPHABETICAL".equalsIgnoreCase(mode);
+        boolean isTier = "TIER".equalsIgnoreCase(mode);
+
         items.sort((a, b) -> {
             if (isAlphabetical) {
                 return a.getName().getString().compareToIgnoreCase(b.getName().getString());
-            } else {
-                String catA = ItemDatabase.getPrimaryCategory(a.getItem());
-                String catB = ItemDatabase.getPrimaryCategory(b.getItem());
-                int orderA = getCategoryPriority(catA);
-                int orderB = getCategoryPriority(catB);
-                if (orderA != orderB) return orderA - orderB;
+            }
+            if (isTier) {
+                int tierA = tierSortRank(a.getItem());
+                int tierB = tierSortRank(b.getItem());
+                if (tierA != tierB) return Integer.compare(tierA, tierB);
                 return a.getName().getString().compareToIgnoreCase(b.getName().getString());
             }
+            String catA = ItemDatabase.getPrimaryCategory(a.getItem());
+            String catB = ItemDatabase.getPrimaryCategory(b.getItem());
+            int orderA = getCategoryPriority(catA);
+            int orderB = getCategoryPriority(catB);
+            if (orderA != orderB) return orderA - orderB;
+            return a.getName().getString().compareToIgnoreCase(b.getName().getString());
         });
         
         int slot = startSlot;

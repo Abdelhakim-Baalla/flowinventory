@@ -10,7 +10,6 @@ import net.minecraft.network.packet.s2c.play.UpdateSelectedSlotS2CPacket;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -64,10 +63,10 @@ public class HotbarSwapper {
         int swapsPerformed = 0;
         boolean foundAnyMatch = false;
 
-        // ── Step 2: arrange every preset slot
-        for (Map.Entry<Integer, String> entry : preset.slots.entrySet()) {
-            int targetSlot = entry.getKey();
-            String desiredType = entry.getValue();
+        // ── Step 2: arrange every preset slot (0→8 only — HashMap iteration order is undefined)
+        for (int targetSlot = 0; targetSlot < 9; targetSlot++) {
+            if (!preset.slots.containsKey(targetSlot)) continue;
+            String desiredType = preset.slots.get(targetSlot);
 
             if (lockedSlots.contains(targetSlot)) continue;
 

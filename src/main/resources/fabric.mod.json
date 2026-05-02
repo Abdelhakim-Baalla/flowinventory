@@ -14,7 +14,7 @@
   },
   "license": "MIT",
   "icon": "assets/flowinventory/icon.png",
-  "environment": "client",
+  "environment": "*",
   "entrypoints": {
     "main": [
       "com.flowinventory.FlowInventoryMod"

@@ -66,16 +66,11 @@ public class FlowInventoryClient implements ClientModInitializer {
         // Tick event
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null) return;
-            
-            // Update activity detector
-            FlowInventoryMod.activityDetector.tick(client.player);
-            
-            // Handle sort keybind
-            while (KEY_SORT.wasPressed()) {
-                NetworkHandler.sendSortRequest();
-                FlowInventoryMod.LOGGER.info("[FlowInventory] Sort packet sent!");
-            }
-            
+
+            // Manual G/V must run before auto-detect tick(): otherwise the detector
+            // can change currentActivity in the same frame and cycleProfile() reads
+            // the wrong starting point (feels like "G skipped the wrong profile").
+
             // Next profile (G) — smart cycle that skips activities the player has no items for
             while (KEY_NEXT_PROFILE.wasPressed()) {
                 cycleProfile(client.player, true);
@@ -84,6 +79,15 @@ public class FlowInventoryClient implements ClientModInitializer {
             // Previous profile (V) — same smart cycle, reversed
             while (KEY_PREV_PROFILE.wasPressed()) {
                 cycleProfile(client.player, false);
+            }
+
+            // Update activity detector (after manual picks so force-override applies same tick)
+            FlowInventoryMod.activityDetector.tick(client.player);
+
+            // Handle sort keybind
+            while (KEY_SORT.wasPressed()) {
+                NetworkHandler.sendSortRequest();
+                FlowInventoryMod.LOGGER.info("[FlowInventory] Sort packet sent!");
             }
             
             // Toggle auto-detect (B)
