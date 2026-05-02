@@ -1,47 +1,63 @@
 package com.flowinventory.server;
 
-import com.flowinventory.network.SortInventoryPacket;
+import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.network.ActivityChangePacket;
+import com.flowinventory.network.SortInventoryPacket;
 import com.flowinventory.profiles.ActivityType;
 import net.fabricmc.fabric.api.networking.v1.ServerPlayNetworking;
+import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.entity.player.PlayerInventory;
-import net.minecraft.item.*;
+import net.minecraft.item.ItemStack;
 import net.minecraft.server.network.ServerPlayerEntity;
 
 import java.util.*;
 
 public class FlowInventoryServer {
-
+    
     public static void register() {
         ServerPlayNetworking.registerGlobalReceiver(
-                SortInventoryPacket.ID,
-                (server, player, handler, buf, responseSender) -> {
-                    server.execute(() -> sortInventory(player));
-                }
+            SortInventoryPacket.ID,
+            (server, player, handler, buf, responseSender) -> {
+                server.execute(() -> {
+                    if (player instanceof ServerPlayerEntity serverPlayer) {
+                        sortInventory(serverPlayer);
+                    }
+                });
+            }
         );
-
+        
         ServerPlayNetworking.registerGlobalReceiver(
-                ActivityChangePacket.ID,
-                (server, player, handler, buf, responseSender) -> {
-                    String activityName = buf.readString();
-                    server.execute(() -> {
+            ActivityChangePacket.ID,
+            (server, player, handler, buf, responseSender) -> {
+                String activityName = buf.readString();
+                server.execute(() -> {
+                    if (player instanceof ServerPlayerEntity serverPlayer) {
                         try {
                             ActivityType newActivity = ActivityType.valueOf(activityName);
-                            HotbarSwapper.swapHotbar(player, newActivity);
+                            HotbarSwapper.swapHotbar(serverPlayer, newActivity);
+                            FlowInventoryMod.LOGGER.debug(
+                                "[FlowInventory] Player {} switched to activity: {}", 
+                                player.getName().getString(), 
+                                newActivity.displayName
+                            );
                         } catch (IllegalArgumentException e) {
-                            // Invalid activity
+                            FlowInventoryMod.LOGGER.warn(
+                                "[FlowInventory] Invalid activity requested: {}", activityName
+                            );
                         }
-                    });
-                }
+                    }
+                });
+            }
         );
+        
+        FlowInventoryMod.LOGGER.info("[FlowInventory] Server packet handlers registered");
     }
-
+    
     private static void sortInventory(ServerPlayerEntity player) {
         PlayerInventory inventory = player.getInventory();
-
-        int startSlot = com.flowinventory.FlowInventoryMod.config.lockHotbar ? 9 : 0;
-
-        // Collect items from inventory slots
+        
+        int startSlot = FlowInventoryMod.config.lockHotbar ? 9 : 0;
+        
         List<ItemStack> items = new ArrayList<>();
         for (int slot = startSlot; slot < 36; slot++) {
             ItemStack stack = inventory.getStack(slot);
@@ -50,112 +66,128 @@ public class FlowInventoryServer {
                 inventory.setStack(slot, ItemStack.EMPTY);
             }
         }
-
+        
         if (items.isEmpty()) return;
-
-        // Merge same-type stacks
-        items = mergeStacks(items);
-
-        // Sort
-        boolean isAlphabetical = "ALPHABETICAL".equalsIgnoreCase(com.flowinventory.FlowInventoryMod.config.sortMode);
+        
+        items = mergeStacksAdvanced(items);
+        
+        boolean isAlphabetical = "ALPHABETICAL".equalsIgnoreCase(FlowInventoryMod.config.sortMode);
         items.sort((a, b) -> {
             if (isAlphabetical) {
                 return a.getName().getString().compareToIgnoreCase(b.getName().getString());
             } else {
-                int catA = getCategoryOrder(a.getItem());
-                int catB = getCategoryOrder(b.getItem());
-                if (catA != catB) return catA - catB;
+                String catA = ItemDatabase.getPrimaryCategory(a.getItem());
+                String catB = ItemDatabase.getPrimaryCategory(b.getItem());
+                int orderA = getCategoryPriority(catA);
+                int orderB = getCategoryPriority(catB);
+                if (orderA != orderB) return orderA - orderB;
                 return a.getName().getString().compareToIgnoreCase(b.getName().getString());
             }
         });
-
-        // Write back to slots
+        
         int slot = startSlot;
         for (ItemStack stack : items) {
             if (slot < 36) {
                 inventory.setStack(slot++, stack);
             }
         }
-        // Clear remaining slots
         while (slot < 36) {
             inventory.setStack(slot++, ItemStack.EMPTY);
         }
-
-        // Sync with client
+        
         player.playerScreenHandler.syncState();
-
+        
         player.sendMessage(
-                net.minecraft.text.Text.literal("✓ Inventory sorted!")
-                        .formatted(net.minecraft.util.Formatting.GREEN),
-                true
+            net.minecraft.text.Text.literal("✓ Inventory sorted!")
+                .styled(style -> style.withColor(0x44FF44)),
+            true
         );
     }
-
-    private static List<ItemStack> mergeStacks(List<ItemStack> items) {
-        Map<String, List<ItemStack>> grouped = new LinkedHashMap<>();
-
+    
+    private static List<ItemStack> mergeStacksAdvanced(List<ItemStack> items) {
+        items.sort((a, b) -> {
+            String idA = getStackKey(a);
+            String idB = getStackKey(b);
+            return idA.compareTo(idB);
+        });
+        
+        List<ItemStack> result = new ArrayList<>();
+        ItemStack current = null;
+        
         for (ItemStack stack : items) {
             if (stack.isEmpty()) continue;
-            String key = getStackKey(stack);
-            grouped.computeIfAbsent(key, k -> new ArrayList<>()).add(stack);
-        }
-
-        List<ItemStack> result = new ArrayList<>();
-        for (List<ItemStack> group : grouped.values()) {
-            // Merge into full stacks
-            ItemStack current = group.get(0).copy();
-            for (int i = 1; i < group.size(); i++) {
-                ItemStack toMerge = group.get(i);
-                int canAdd = current.getMaxCount() - current.getCount();
-                int toAdd = Math.min(canAdd, toMerge.getCount());
+            
+            if (current == null) {
+                current = stack.copy();
+                current.setCount(stack.getCount());
+            } else if (canMerge(current, stack)) {
+                int spaceLeft = current.getMaxCount() - current.getCount();
+                int toAdd = Math.min(spaceLeft, stack.getCount());
                 current.increment(toAdd);
-
-                int leftover = toMerge.getCount() - toAdd;
+                
+                int leftover = stack.getCount() - toAdd;
                 if (current.getCount() >= current.getMaxCount()) {
                     result.add(current);
                     if (leftover > 0) {
-                        current = toMerge.copy();
+                        current = stack.copy();
                         current.setCount(leftover);
                     } else {
                         current = null;
-                        // Continue to next, will be set by next iteration or after loop
-                        if (i + 1 < group.size()) {
-                            current = group.get(i + 1).copy();
-                            i++;
-                        }
                     }
                 } else if (leftover > 0) {
-                    // current has space but leftover exists (shouldn't happen, but safety)
-                    ItemStack leftoverStack = toMerge.copy();
+                    ItemStack leftoverStack = stack.copy();
                     leftoverStack.setCount(leftover);
                     result.add(current);
                     current = leftoverStack;
                 }
-            }
-            if (current != null && !current.isEmpty()) {
+            } else {
                 result.add(current);
+                current = stack.copy();
             }
         }
+        
+        if (current != null && !current.isEmpty()) {
+            result.add(current);
+        }
+        
         return result;
     }
-
+    
+    private static boolean canMerge(ItemStack a, ItemStack b) {
+        return ItemStack.canCombine(a, b);
+    }
+    
     private static String getStackKey(ItemStack stack) {
         if (stack.hasNbt()) {
             return stack.getItem().toString() + "_nbt_" + stack.getNbt().hashCode();
         }
         return stack.getItem().toString();
     }
-
-    private static int getCategoryOrder(Item item) {
-        if (item instanceof SwordItem) return 1;
-        if (item instanceof PickaxeItem) return 2;
-        if (item instanceof AxeItem) return 3;
-        if (item instanceof ShovelItem) return 4;
-        if (item instanceof HoeItem) return 5;
-        if (item instanceof ArmorItem) return 6;
-        if (item instanceof ShieldItem) return 7;
-        if (item.getFoodComponent() != null) return 8;
-        if (item instanceof BlockItem) return 9;
-        return 10;
+    
+    private static int getCategoryPriority(String category) {
+        switch (category) {
+            case "SWORD": return 1;
+            case "AXE_COMBAT": return 2;
+            case "TRIDENT": return 3;
+            case "BOW": return 4;
+            case "PICKAXE": return 5;
+            case "SHOVEL": return 6;
+            case "AXE_TOOL": return 7;
+            case "HOE": return 8;
+            case "HELMET": return 9;
+            case "CHESTPLATE": return 10;
+            case "LEGGINGS": return 11;
+            case "BOOTS": return 12;
+            case "SHIELD": return 13;
+            case "FOOD": return 14;
+            case "BLOCK": return 15;
+            case "REDSTONE": return 16;
+            case "POTION": return 17;
+            case "TORCH": return 18;
+            case "GEM": return 19;
+            case "INGOT": return 20;
+            case "RAW_MATERIAL": return 21;
+            default: return 50;
+        }
     }
 }
