@@ -227,6 +227,17 @@ public enum ActivityType {
     AFK("Idle", "\uD83D\uDCA4"),
     IDLE("Idle", "\uD83D\uDCA4"),
 
+    // ── EMERGENCY / STATE-DRIVEN ─────────────────────────────────────
+    EMERGENCY_COMBAT("Emergency!", "\u26A0"),
+    LOW_HEALTH("Low Health", "\u2764"),
+    LOW_HUNGER("Hungry", "\uD83C\uDF56"),
+    ON_FIRE("On Fire!", "\uD83D\uDD25"),
+    IN_LAVA("In Lava!", "\uD83C\uDF0B"),
+    DROWNING("Drowning", "\uD83C\uDF0A"),
+    FALLING("Falling", "\u2B07"),
+    POISONED("Poisoned", "\u2620"),
+    WITHERING("Withering", "\uD83D\uDC80"),
+
     // ── MISC ─────────────────────────────────────────────────────────
     GENERAL("General", "\uD83C\uDF92"),
     UNKNOWN("Unknown", "\u2753");

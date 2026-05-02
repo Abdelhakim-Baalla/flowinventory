@@ -3,8 +3,11 @@ package com.flowinventory.core;
 import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.network.NetworkHandler;
 import com.flowinventory.profiles.ActivityType;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockState;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.LivingEntity;
+import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.player.PlayerEntity;
@@ -12,6 +15,7 @@ import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKey;
+import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.Box;
 import net.minecraft.world.World;
 
@@ -26,16 +30,38 @@ import java.util.Map;
  * <p>
  * Each tick this class collects dozens of signals from the player
  * (held item, off-hand item, worn armor, nearby blocks, nearby mobs,
- * dimension, biome, time of day, light level, recent damage, etc.) and
- * produces a weighted vote for every {@link ActivityType}. The activity
- * with the highest score above a confidence threshold becomes "current".
+ * dimension, biome, time of day, light level, recent damage, health,
+ * hunger, fire, water depth, fall distance, status effects, manual
+ * hotbar scroll, etc.) and produces a weighted vote for every
+ * {@link ActivityType}. The activity with the highest score above a
+ * confidence threshold becomes "current".
  * <p>
- * The combinatorial space of (held item × off-hand × armor × mob mix ×
- * dimension × biome × light × time) easily yields well over a million
- * distinct decision paths, all funneling into the same well-defined set
- * of activities used by {@link com.flowinventory.server.HotbarSwapper}.
+ * Important behaviour:
+ * <ul>
+ *   <li>If the player just scrolled their hotbar manually, the detector
+ *       enters a "manual override" window during which it stops sending
+ *       activity-change packets so the player keeps the slot they
+ *       picked. Emergencies bypass this window.</li>
+ *   <li>If a hostile mob is close and the player isn't holding a weapon
+ *       (and they own one in the inventory), the detector triggers
+ *       {@link ActivityType#EMERGENCY_COMBAT}, which the swapper
+ *       handles by force-equipping a weapon plus a shield in the
+ *       off-hand.</li>
+ *   <li>Status effects, health, hunger, fire, drowning and fall
+ *       distance also feed dedicated activities so the swapper can
+ *       react with potions, food or elytra automatically.</li>
+ * </ul>
  */
 public class ActivityDetector {
+
+    /** ms after a manual scroll during which auto-apply is suppressed. */
+    private static final long MANUAL_OVERRIDE_MS = 4500;
+
+    /** Cooldown between two emergency-combat triggers. */
+    private static final long EMERGENCY_COOLDOWN_MS = 2500;
+
+    /** Scan radius for nearby workstations (blocks). */
+    private static final int WORKSTATION_RADIUS = 4;
 
     private final EnumMap<ActivityType, Integer> activityWeights = new EnumMap<>(ActivityType.class);
 
@@ -48,7 +74,10 @@ public class ActivityDetector {
     private long lastTickTime = 0;
     private int idleTicks = 0;
 
-    private Item lastHeldItem;
+    private int lastObservedSelectedSlot = -1;
+    private long lastManualScrollTime = 0;
+    private long lastEmergencyTime = 0;
+
     private double lastX, lastY, lastZ;
 
     public ActivityType getCurrentActivity() {
@@ -57,12 +86,8 @@ public class ActivityDetector {
 
     /**
      * Forcibly set the activity (used by manual G/V keybinds and the API).
-     * <p>
-     * IMPORTANT: this also pushes the change to the server so the
-     * hotbar gets re-arranged AND the held slot is updated. Without
-     * this server round-trip, the player's selected slot would stay
-     * on the previous item — that was the bug behind "G doesn't switch
-     * the held item".
+     * Always pushes the change to the server so the hotbar gets re-arranged
+     * AND the held slot is updated.
      */
     public void forceSetActivity(ActivityType activity) {
         if (activity == null) activity = ActivityType.GENERAL;
@@ -71,6 +96,10 @@ public class ActivityDetector {
         pendingActivity = activity;
         pendingTicks = 0;
         lastSwitchTime = System.currentTimeMillis();
+
+        // The player explicitly asked, so cancel any active manual-override
+        // window — they want a fresh swap right now.
+        lastManualScrollTime = 0;
 
         FlowInventoryMod.LOGGER.info(
                 "[FlowInventory] Activity manually set to: {}",
@@ -90,6 +119,7 @@ public class ActivityDetector {
         if (now - lastTickTime < 250) return; // throttle to ~4 Hz
         lastTickTime = now;
 
+        updateScrollTracking(player, now);
         updateIdleCounter(player);
 
         ItemStack held = player.getMainHandStack();
@@ -98,7 +128,7 @@ public class ActivityDetector {
         activityWeights.clear();
         for (ActivityType t : ActivityType.values()) activityWeights.put(t, 0);
 
-        // 1. Held item is the strongest signal (weight ×4)
+        // 1. Held item is the strongest item-level signal (weight ×4)
         scoreFromItem(held, 4);
 
         // 2. Off-hand item gets a smaller bump (weight ×2)
@@ -115,18 +145,31 @@ public class ActivityDetector {
         // 5. Dimension context
         scoreFromDimension(player);
 
-        // 6. Biome context (cheap heuristics from y-level + dimension)
+        // 6. Biome / environment heuristics
         scoreFromEnvironment(player);
 
         // 7. Idle / sleeping / riding context
         scoreFromPlayerState(player);
 
-        // 8. Boost the current activity slightly to reduce flapping
+        // 8. Health, hunger, status effects, hazards
+        scoreFromVitals(player);
+
+        // 9. Nearby workstations & PvP players
+        scoreFromBlocksAndPlayers(player);
+
+        // 10. Boost the current activity slightly to reduce flapping
         if (currentActivity != ActivityType.GENERAL && currentActivity != ActivityType.UNKNOWN) {
             activityWeights.merge(currentActivity, 8, Integer::sum);
         }
 
-        // 9. Pick the winner above the confidence threshold
+        // 11. Emergency check FIRST — bypasses every other rule
+        if (shouldTriggerEmergencyCombat(player)
+                && now - lastEmergencyTime > EMERGENCY_COOLDOWN_MS) {
+            triggerEmergency(player, now);
+            return; // skip the normal flow this tick
+        }
+
+        // 12. Pick the winner above the confidence threshold
         Map.Entry<ActivityType, Integer> winner = activityWeights.entrySet().stream()
                 .max(Comparator.comparingInt(Map.Entry::getValue))
                 .orElse(null);
@@ -135,7 +178,7 @@ public class ActivityDetector {
                 ? winner.getKey()
                 : ActivityType.GENERAL;
 
-        // 10. Debounce — require N consecutive ticks before switching
+        // 13. Debounce — require N consecutive ticks before switching
         if (detected == pendingActivity) {
             pendingTicks++;
         } else {
@@ -156,12 +199,90 @@ public class ActivityDetector {
                     winner != null ? winner.getValue() : 0
             );
 
-            if (FlowInventoryMod.config.autoApplyProfile) {
+            // Suppress auto-apply if the player just scrolled — they
+            // explicitly chose what to hold, so don't yank their slot.
+            boolean inManualOverride = (now - lastManualScrollTime) < MANUAL_OVERRIDE_MS;
+
+            if (FlowInventoryMod.config.autoApplyProfile && !inManualOverride) {
                 NetworkHandler.sendActivityChange(currentActivity);
             }
         }
+    }
 
-        lastHeldItem = held.getItem();
+    // ==================== EMERGENCY COMBAT ====================
+
+    private boolean shouldTriggerEmergencyCombat(PlayerEntity player) {
+        ItemStack held = player.getMainHandStack();
+        if (isCombatReady(held)) return false;
+
+        World world = player.getWorld();
+        if (world == null) return false;
+
+        double range = Math.max(5.0, FlowInventoryMod.config.combatDetectionRange);
+        Box box = player.getBoundingBox().expand(range);
+        List<HostileEntity> hostiles = world.getEntitiesByClass(
+                HostileEntity.class,
+                box,
+                e -> e != null && e.isAlive() && e.canTarget(player)
+        );
+
+        if (hostiles.isEmpty()) return false;
+
+        // Closest hostile within ~6 blocks → emergency
+        double closestSq = Double.MAX_VALUE;
+        for (HostileEntity e : hostiles) {
+            double d = e.squaredDistanceTo(player);
+            if (d < closestSq) closestSq = d;
+        }
+        if (closestSq > 36.0) return false;
+
+        // Player must actually own a weapon somewhere
+        return findInventoryWeaponSlot(player) >= 0;
+    }
+
+    private void triggerEmergency(PlayerEntity player, long now) {
+        lastEmergencyTime = now;
+        currentActivity = ActivityType.EMERGENCY_COMBAT;
+        pendingActivity = ActivityType.EMERGENCY_COMBAT;
+        pendingTicks = 0;
+        lastSwitchTime = now;
+
+        // Cancel manual override — emergencies always force a swap
+        lastManualScrollTime = 0;
+
+        FlowInventoryMod.LOGGER.warn(
+                "[FlowInventory] Emergency: hostile mob close & no weapon held \u2192 forcing EMERGENCY_COMBAT"
+        );
+
+        if (FlowInventoryMod.config.autoApplyProfile) {
+            NetworkHandler.sendActivityChange(ActivityType.EMERGENCY_COMBAT);
+        }
+    }
+
+    private static boolean isCombatReady(ItemStack stack) {
+        if (stack == null || stack.isEmpty()) return false;
+        String path = Registries.ITEM.getId(stack.getItem()).getPath();
+        return path.contains("sword") || path.contains("trident") || path.contains("mace")
+                || path.equals("bow") || path.equals("crossbow")
+                || (path.contains("axe") && !path.contains("pickaxe"));
+    }
+
+    private static int findInventoryWeaponSlot(PlayerEntity player) {
+        for (int i = 0; i < 36; i++) {
+            ItemStack s = player.getInventory().getStack(i);
+            if (isCombatReady(s)) return i;
+        }
+        return -1;
+    }
+
+    // ==================== SCROLL TRACKING ====================
+
+    private void updateScrollTracking(PlayerEntity player, long now) {
+        int slot = player.getInventory().selectedSlot;
+        if (lastObservedSelectedSlot != -1 && slot != lastObservedSelectedSlot) {
+            lastManualScrollTime = now;
+        }
+        lastObservedSelectedSlot = slot;
     }
 
     private int scaledThreshold() {
@@ -189,6 +310,8 @@ public class ActivityDetector {
         }
     }
 
+    // ==================== ITEM SCORING ====================
+
     private void scoreFromItem(ItemStack stack, int weight) {
         if (stack == null || stack.isEmpty()) return;
 
@@ -196,7 +319,6 @@ public class ActivityDetector {
         String path = Registries.ITEM.getId(item).getPath();
         String upper = path.toUpperCase();
 
-        // ── Weapons ──────────────────────────────────────────────────
         if (upper.contains("SWORD")) bump(ActivityType.SWORD_COMBAT, 22 * weight);
         if (upper.contains("AXE") && !upper.contains("PICKAXE")) {
             bump(ActivityType.AXE_COMBAT, 14 * weight);
@@ -213,9 +335,7 @@ public class ActivityDetector {
             bump(ActivityType.CROSSBOW_COMBAT, 22 * weight);
             bump(ActivityType.RAID, 6 * weight);
         }
-        if (upper.contains("ARROW")) {
-            bump(ActivityType.ARCHERY, 6 * weight);
-        }
+        if (upper.contains("ARROW")) bump(ActivityType.ARCHERY, 6 * weight);
         if (upper.contains("SHIELD")) {
             bump(ActivityType.DEFENSIVE, 14 * weight);
             bump(ActivityType.COMBAT, 6 * weight);
@@ -229,8 +349,8 @@ public class ActivityDetector {
         if (upper.contains("SPLASH_POTION")) bump(ActivityType.POTION_COMBAT, 16 * weight);
         if (upper.contains("LINGERING_POTION")) bump(ActivityType.POTION_COMBAT, 18 * weight);
         if (upper.equals("POTION")) bump(ActivityType.HEALING, 10 * weight);
+        if (upper.equals("TOTEM_OF_UNDYING")) bump(ActivityType.DEFENSIVE, 18 * weight);
 
-        // ── Mining tools ─────────────────────────────────────────────
         if (upper.contains("PICKAXE")) {
             bump(ActivityType.MINING, 22 * weight);
             bump(ActivityType.STONEMASONRY, 6 * weight);
@@ -261,7 +381,6 @@ public class ActivityDetector {
             bump(ActivityType.NETHER, 6 * weight);
         }
 
-        // ── Building blocks ──────────────────────────────────────────
         if (item instanceof net.minecraft.item.BlockItem) {
             bump(ActivityType.BUILDING, 8 * weight);
             if (upper.contains("PLANK") || upper.contains("LOG") || upper.contains("WOOD")) {
@@ -283,7 +402,6 @@ public class ActivityDetector {
             }
         }
 
-        // ── Crops & farm goods ───────────────────────────────────────
         if (upper.equals("WHEAT") || upper.equals("WHEAT_SEEDS")) bump(ActivityType.CROP_FARMING, 14 * weight);
         if (upper.equals("CARROT") || upper.equals("POTATO") || upper.equals("BEETROOT")
                 || upper.contains("BEETROOT_SEEDS") || upper.contains("PUMPKIN_SEEDS")
@@ -298,7 +416,6 @@ public class ActivityDetector {
         if (upper.contains("HONEY") || upper.contains("BEE")) bump(ActivityType.BEE_FARMING, 14 * weight);
         if (upper.contains("SAPLING") || upper.contains("PROPAGULE")) bump(ActivityType.TREE_FARMING, 12 * weight);
 
-        // ── Food ─────────────────────────────────────────────────────
         if (item.getFoodComponent() != null) {
             bump(ActivityType.FOOD, 6 * weight);
             bump(ActivityType.NUTRITION, 4 * weight);
@@ -310,7 +427,6 @@ public class ActivityDetector {
             bump(ActivityType.HEALING, 8 * weight);
         }
 
-        // ── Brewing & enchanting ─────────────────────────────────────
         if (upper.equals("BLAZE_POWDER") || upper.equals("BLAZE_ROD")) {
             bump(ActivityType.BREWING, 14 * weight);
             bump(ActivityType.NETHER, 4 * weight);
@@ -327,7 +443,6 @@ public class ActivityDetector {
             bump(ActivityType.WRITING, 12 * weight);
         }
 
-        // ── Travel & exploration ─────────────────────────────────────
         if (upper.contains("ELYTRA")) bump(ActivityType.ELYTRA, 28 * weight);
         if (upper.contains("FIREWORK_ROCKET")) bump(ActivityType.ELYTRA, 8 * weight);
         if (upper.contains("BOAT") || upper.contains("RAFT")) bump(ActivityType.BOAT, 18 * weight);
@@ -350,7 +465,6 @@ public class ActivityDetector {
         }
         if (upper.equals("CHORUS_FRUIT")) bump(ActivityType.TELEPORT, 14 * weight);
 
-        // ── Lighting ─────────────────────────────────────────────────
         if (upper.equals("TORCH") || upper.equals("SOUL_TORCH")
                 || upper.contains("LANTERN") || upper.contains("CANDLE")
                 || upper.equals("GLOWSTONE")) {
@@ -358,7 +472,6 @@ public class ActivityDetector {
             bump(ActivityType.CAVING, 4 * weight);
         }
 
-        // ── Redstone ─────────────────────────────────────────────────
         if (upper.contains("REDSTONE")) bump(ActivityType.REDSTONE, 12 * weight);
         if (upper.equals("REPEATER") || upper.equals("COMPARATOR")) bump(ActivityType.REDSTONE_LOGIC, 14 * weight);
         if (upper.equals("OBSERVER")) bump(ActivityType.OBSERVER, 14 * weight);
@@ -370,11 +483,9 @@ public class ActivityDetector {
             bump(ActivityType.REDSTONE_LOGIC, 6 * weight);
         }
 
-        // ── Buckets ──────────────────────────────────────────────────
         if (upper.equals("WATER_BUCKET")) bump(ActivityType.BUCKET_USE, 8 * weight);
         if (upper.equals("LAVA_BUCKET")) bump(ActivityType.BUCKET_USE, 8 * weight);
 
-        // ── Nether-specific items ───────────────────────────────────
         if (upper.contains("NETHERITE")) bump(ActivityType.NETHER_RESOURCES, 6 * weight);
         if (upper.equals("ANCIENT_DEBRIS") || upper.equals("NETHERITE_SCRAP")) {
             bump(ActivityType.ANCIENT_DEBRIS, 24 * weight);
@@ -385,12 +496,13 @@ public class ActivityDetector {
         }
     }
 
+    // ==================== MOB SCORING ====================
+
     private void scoreFromNearbyMobs(PlayerEntity player) {
         World world = player.getWorld();
         if (world == null) return;
 
         double range = Math.max(4.0, FlowInventoryMod.config.combatDetectionRange);
-
         Box box = player.getBoundingBox().expand(range);
         List<LivingEntity> nearby = world.getEntitiesByClass(
                 LivingEntity.class,
@@ -410,11 +522,8 @@ public class ActivityDetector {
                 anyHostile = true;
                 totalHostiles++;
             }
-            if (e instanceof AnimalEntity) {
-                totalAnimals++;
-            }
+            if (e instanceof AnimalEntity) totalAnimals++;
 
-            // Mob-specific routing
             switch (type) {
                 case "CREEPER" -> bump(ActivityType.CREEPER, 18);
                 case "SKELETON", "STRAY" -> bump(ActivityType.SKELETON, 18);
@@ -450,7 +559,6 @@ public class ActivityDetector {
                 default -> { /* no-op */ }
             }
 
-            // Animal-specific farming hints
             switch (type) {
                 case "SHEEP" -> bump(ActivityType.SHEEP_FARMING, 6);
                 case "COW", "MOOSHROOM" -> bump(ActivityType.COW_FARMING, 6);
@@ -466,25 +574,20 @@ public class ActivityDetector {
             }
         }
 
-        if (anyHostile) {
-            bump(ActivityType.COMBAT, 8 + totalHostiles * 2);
-        }
-        if (totalHostiles >= 4) {
-            bump(ActivityType.BATTLE, 18);
-        }
-        if (totalHostiles >= 8) {
-            bump(ActivityType.BERSERK, 24);
-        }
+        if (anyHostile) bump(ActivityType.COMBAT, 8 + totalHostiles * 2);
+        if (totalHostiles >= 4) bump(ActivityType.BATTLE, 18);
+        if (totalHostiles >= 8) bump(ActivityType.BERSERK, 24);
         if (totalAnimals >= 3) {
             bump(ActivityType.ANIMAL_FARMING, 8);
             bump(ActivityType.BREEDING, 4);
         }
     }
 
+    // ==================== DIMENSION ====================
+
     private void scoreFromDimension(PlayerEntity player) {
         World world = player.getWorld();
         if (world == null) return;
-
         if (!FlowInventoryMod.config.enableDimensionalContext) return;
 
         RegistryKey<World> dim = world.getRegistryKey();
@@ -499,13 +602,13 @@ public class ActivityDetector {
         }
     }
 
+    // ==================== ENVIRONMENT ====================
+
     private void scoreFromEnvironment(PlayerEntity player) {
         World world = player.getWorld();
         if (world == null) return;
 
         double y = player.getY();
-
-        // Underground / caving heuristics
         if (y < 40) {
             bump(ActivityType.CAVING, 6);
             bump(ActivityType.MINING, 4);
@@ -514,25 +617,13 @@ public class ActivityDetector {
             bump(ActivityType.DEEPSLATE_MINING, 6);
             bump(ActivityType.DEEP_DARK, 4);
         }
+        if (y > 100 && !player.isOnGround()) bump(ActivityType.ELYTRA, 4);
 
-        // Sky / elytra zone
-        if (y > 100 && !player.isOnGround()) {
-            bump(ActivityType.ELYTRA, 4);
-        }
+        if (world.getLightLevel(player.getBlockPos()) < 7) bump(ActivityType.LIGHTING, 3);
 
-        // Light level — torches recommended in the dark
-        if (world.getLightLevel(player.getBlockPos()) < 7) {
-            bump(ActivityType.LIGHTING, 3);
-        }
-
-        // Time of day
         long time = world.getTimeOfDay() % 24000;
-        if (time > 13000 && time < 23000) {
-            // Night — combat more likely
-            bump(ActivityType.COMBAT, 3);
-        }
+        if (time > 13000 && time < 23000) bump(ActivityType.COMBAT, 3);
 
-        // Water
         if (player.isSubmergedInWater()) {
             bump(ActivityType.DIVING, 12);
             bump(ActivityType.OCEAN, 6);
@@ -542,14 +633,14 @@ public class ActivityDetector {
         }
     }
 
+    // ==================== PLAYER STATE ====================
+
     private void scoreFromPlayerState(PlayerEntity player) {
-        // Sleeping
         if (player.isSleeping()) {
             bump(ActivityType.SLEEPING, 60);
             return;
         }
 
-        // Riding
         Entity vehicle = player.getVehicle();
         if (vehicle != null) {
             String vt = Registries.ENTITY_TYPE.getId(vehicle.getType()).getPath().toUpperCase();
@@ -566,24 +657,138 @@ public class ActivityDetector {
             }
         }
 
-        // Gliding
-        if (player.isFallFlying()) {
-            bump(ActivityType.ELYTRA, 60);
-        }
+        if (player.isFallFlying()) bump(ActivityType.ELYTRA, 60);
 
-        // Idle / AFK
-        if (idleTicks > 200) {
-            bump(ActivityType.IDLE, 12);
-        }
-        if (idleTicks > 1200) {
-            bump(ActivityType.AFK, 24);
-        }
+        if (idleTicks > 200) bump(ActivityType.IDLE, 12);
+        if (idleTicks > 1200) bump(ActivityType.AFK, 24);
 
-        // Recently hurt → combat-leaning
         if (System.currentTimeMillis() - lastHurtTime < 4000) {
             bump(ActivityType.COMBAT, 14);
             bump(ActivityType.DEFENSIVE, 6);
         }
+    }
+
+    // ==================== VITALS / HAZARDS ====================
+
+    private void scoreFromVitals(PlayerEntity player) {
+        float health = player.getHealth();
+        float maxHealth = player.getMaxHealth();
+        float ratio = maxHealth > 0 ? health / maxHealth : 1f;
+
+        if (ratio < 0.30f) {
+            bump(ActivityType.LOW_HEALTH, 40);
+            bump(ActivityType.HEALING, 30);
+            bump(ActivityType.DEFENSIVE, 12);
+        } else if (ratio < 0.50f) {
+            bump(ActivityType.HEALING, 14);
+        }
+
+        int food = player.getHungerManager().getFoodLevel();
+        if (food < 6) {
+            bump(ActivityType.LOW_HUNGER, 30);
+            bump(ActivityType.FOOD, 22);
+            bump(ActivityType.NUTRITION, 16);
+        } else if (food < 12) {
+            bump(ActivityType.FOOD, 6);
+        }
+
+        if (player.isOnFire() && !player.isFireImmune()) {
+            bump(ActivityType.ON_FIRE, 50);
+            bump(ActivityType.HEALING, 18);
+            bump(ActivityType.BUCKET_USE, 14);
+        }
+        if (player.isInLava()) {
+            bump(ActivityType.IN_LAVA, 70);
+            bump(ActivityType.HEALING, 25);
+            bump(ActivityType.BUCKET_USE, 25);
+        }
+
+        int air = player.getAir();
+        int maxAir = player.getMaxAir();
+        if (air >= 0 && air < maxAir / 3) {
+            bump(ActivityType.DROWNING, 40);
+            bump(ActivityType.DIVING, 20);
+            bump(ActivityType.BUCKET_USE, 10);
+        }
+
+        if (player.fallDistance > 6f) {
+            bump(ActivityType.FALLING, 40);
+            bump(ActivityType.ELYTRA, 14);
+        }
+
+        if (player.hasStatusEffect(StatusEffects.POISON)) {
+            bump(ActivityType.POISONED, 35);
+            bump(ActivityType.HEALING, 18);
+        }
+        if (player.hasStatusEffect(StatusEffects.WITHER)) {
+            bump(ActivityType.WITHERING, 50);
+            bump(ActivityType.HEALING, 25);
+        }
+        if (player.hasStatusEffect(StatusEffects.HUNGER)) bump(ActivityType.FOOD, 12);
+        if (player.hasStatusEffect(StatusEffects.NIGHT_VISION)) bump(ActivityType.CAVING, 6);
+        if (player.hasStatusEffect(StatusEffects.WATER_BREATHING)) bump(ActivityType.DIVING, 10);
+        if (player.hasStatusEffect(StatusEffects.FIRE_RESISTANCE)) bump(ActivityType.NETHER, 6);
+        if (player.hasStatusEffect(StatusEffects.SLOW_FALLING)) bump(ActivityType.ELYTRA, 6);
+
+        if (player.isSneaking()) bump(ActivityType.DEFENSIVE, 4);
+        if (player.isSprinting() && !player.isFallFlying()) bump(ActivityType.COMBAT, 3);
+    }
+
+    // ==================== NEARBY BLOCKS / PLAYERS ====================
+
+    private void scoreFromBlocksAndPlayers(PlayerEntity player) {
+        World world = player.getWorld();
+        if (world == null) return;
+
+        BlockPos center = player.getBlockPos();
+        for (int dx = -WORKSTATION_RADIUS; dx <= WORKSTATION_RADIUS; dx++) {
+            for (int dy = -2; dy <= 2; dy++) {
+                for (int dz = -WORKSTATION_RADIUS; dz <= WORKSTATION_RADIUS; dz++) {
+                    BlockPos pos = center.add(dx, dy, dz);
+                    BlockState state = world.getBlockState(pos);
+                    Block block = state.getBlock();
+                    String name = Registries.BLOCK.getId(block).getPath();
+
+                    switch (name) {
+                        case "crafting_table" -> bump(ActivityType.UTILITY, 8);
+                        case "furnace" -> bump(ActivityType.SMELTING, 12);
+                        case "blast_furnace" -> bump(ActivityType.SMELTING, 14);
+                        case "smoker" -> bump(ActivityType.COOKING, 14);
+                        case "anvil", "chipped_anvil", "damaged_anvil" -> bump(ActivityType.ANVIL, 18);
+                        case "enchanting_table" -> bump(ActivityType.ENCHANTING, 24);
+                        case "brewing_stand" -> bump(ActivityType.BREWING, 24);
+                        case "loom" -> bump(ActivityType.LOOM, 18);
+                        case "cartography_table" -> bump(ActivityType.CARTOGRAPHY, 18);
+                        case "smithing_table" -> bump(ActivityType.SMITHING, 18);
+                        case "stonecutter" -> bump(ActivityType.STONECUTTER, 18);
+                        case "grindstone" -> bump(ActivityType.GRINDSTONE, 18);
+                        case "composter" -> bump(ActivityType.COMPOSTING, 14);
+                        case "respawn_anchor" -> bump(ActivityType.NETHER, 8);
+                        case "lodestone" -> bump(ActivityType.COMPASS, 10);
+                        case "beacon" -> bump(ActivityType.UTILITY, 12);
+                        case "bookshelf", "chiseled_bookshelf" -> bump(ActivityType.ENCHANTING, 6);
+                        case "jukebox" -> bump(ActivityType.IDLE, 8);
+                        case "barrel", "chest", "trapped_chest" -> bump(ActivityType.UTILITY, 4);
+                        case "ender_chest" -> bump(ActivityType.ENDER, 10);
+                        case "shulker_box" -> bump(ActivityType.ENDER, 8);
+                        case "beehive", "bee_nest" -> bump(ActivityType.BEE_FARMING, 14);
+                        case "soul_campfire" -> bump(ActivityType.NETHER, 6);
+                        case "campfire" -> bump(ActivityType.COOKING, 8);
+                        case "spawner" -> bump(ActivityType.COMBAT, 12);
+                        case "sculk_shrieker", "sculk_sensor", "sculk_catalyst" -> bump(ActivityType.DEEP_DARK, 18);
+                        default -> { /* no-op */ }
+                    }
+                    if (name.contains("_bed")) bump(ActivityType.SLEEPING, 6);
+                }
+            }
+        }
+
+        // Other players nearby → PvP signal (only count non-self players)
+        Box pvpBox = player.getBoundingBox().expand(8.0);
+        List<PlayerEntity> others = world.getEntitiesByClass(
+                PlayerEntity.class, pvpBox, p -> p != player && p.isAlive()
+        );
+        if (!others.isEmpty()) bump(ActivityType.PVP, 12 + Math.min(others.size() * 4, 24));
     }
 
     private void bump(ActivityType type, int amount) {

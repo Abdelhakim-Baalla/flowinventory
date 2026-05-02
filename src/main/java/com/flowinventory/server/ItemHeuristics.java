@@ -916,6 +916,13 @@ public class ItemHeuristics {
                 if (itemPath.equals("dragon_head")) return 100;
                 return -1;
 
+            case "TOTEM":
+            case "TOTEM_OF_UNDYING":
+                if (itemPath.equals("totem_of_undying")) return 200;
+                if (itemPath.equals("shield")) return 90; // safe fallback
+                if (itemPath.contains("golden_apple")) return 60;
+                return -1;
+
             default:
                 return getFallbackScore(item, type);
         }

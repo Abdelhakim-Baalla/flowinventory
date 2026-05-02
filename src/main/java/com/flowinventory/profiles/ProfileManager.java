@@ -23,7 +23,8 @@ public class ProfileManager {
             .add(5, "GOLDEN_APPLE")
             .add(6, "POTION")
             .add(7, "FIREWORK")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.SWORD_COMBAT, new HotbarPreset()
             .add(0, "SWORD")
@@ -34,7 +35,8 @@ public class ProfileManager {
             .add(5, "FIRE_CHARGE")
             .add(6, "TNT")
             .add(7, "ENDER_PEARL")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.AXE_COMBAT, new HotbarPreset()
             .add(0, "AXE_COMBAT")
@@ -45,7 +47,8 @@ public class ProfileManager {
             .add(5, "TNT")
             .add(6, "GOLDEN_APPLE")
             .add(7, "POTION")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.TRIDENT_COMBAT, new HotbarPreset()
             .add(0, "TRIDENT")
@@ -67,7 +70,8 @@ public class ProfileManager {
             .add(5, "ENDER_PEARL")
             .add(6, "POTION")
             .add(7, "SHIELD")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.SNIPER, new HotbarPreset()
             .add(0, "BOW")
@@ -111,7 +115,8 @@ public class ProfileManager {
             .add(5, "POTION")
             .add(6, "SHIELD")
             .add(7, "SWORD")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.SKELETON, new HotbarPreset()
             .add(0, "BOW")
@@ -122,7 +127,8 @@ public class ProfileManager {
             .add(5, "SHIELD")
             .add(6, "ENDER_PEARL")
             .add(7, "POTION")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.ZOMBIE, new HotbarPreset()
             .add(0, "SWORD")
@@ -133,7 +139,8 @@ public class ProfileManager {
             .add(5, "POTION")
             .add(6, "BANNER")
             .add(7, "ENDER_PEARL")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.SPIDER, new HotbarPreset()
             .add(0, "SWORD")
@@ -232,7 +239,8 @@ public class ProfileManager {
             .add(5, "FOOD")
             .add(6, "CROSSBOW")
             .add(7, "ENDER_PEARL")
-            .add(8, "MILK_BUCKET"));
+            .add(8, "MILK_BUCKET")
+            .offHand("SHIELD"));
             
         PRESETS.put(ActivityType.BATTLE, new HotbarPreset()
             .add(0, "SWORD")
@@ -243,7 +251,8 @@ public class ProfileManager {
             .add(5, "ENDER_PEARL")
             .add(6, "GOLDEN_APPLE")
             .add(7, "FIREWORK")
-            .add(8, "FOOD"));
+            .add(8, "FOOD")
+            .offHand("SHIELD"));
 
         // ==================== MINING PRESETS ====================
         
@@ -1046,6 +1055,113 @@ public class ProfileManager {
                 .add(8, "FOOD"));
         PRESETS.put(ActivityType.AFK, PRESETS.get(ActivityType.GENERAL));
         PRESETS.put(ActivityType.IDLE, PRESETS.get(ActivityType.GENERAL));
+
+        // ==================== EMERGENCY / VITAL PRESETS ====================
+
+        // Drag a sword to slot 0, push a shield to off-hand, surround with safety
+        PRESETS.put(ActivityType.EMERGENCY_COMBAT, new HotbarPreset()
+                .add(0, "SWORD")
+                .add(1, "GOLDEN_APPLE")
+                .add(2, "POTION")
+                .add(3, "ENDER_PEARL")
+                .add(4, "MILK_BUCKET")
+                .add(5, "BOW")
+                .add(6, "ARROW")
+                .add(7, "SHIELD")
+                .add(8, "FOOD")
+                .offHand("SHIELD"));
+
+        PRESETS.put(ActivityType.LOW_HEALTH, new HotbarPreset()
+                .add(0, "GOLDEN_APPLE")
+                .add(1, "POTION")
+                .add(2, "MILK_BUCKET")
+                .add(3, "FOOD")
+                .add(4, "ENDER_PEARL")
+                .add(5, "SHIELD")
+                .add(6, "SWORD")
+                .add(7, "HONEY_BOTTLE")
+                .add(8, "FOOD")
+                .offHand("TOTEM"));
+
+        PRESETS.put(ActivityType.LOW_HUNGER, new HotbarPreset()
+                .add(0, "STEAK")
+                .add(1, "GOLDEN_CARROT")
+                .add(2, "BREAD")
+                .add(3, "FOOD")
+                .add(4, "FOOD")
+                .add(5, "GOLDEN_APPLE")
+                .add(6, "FOOD")
+                .add(7, "FOOD")
+                .add(8, "FOOD"));
+
+        PRESETS.put(ActivityType.ON_FIRE, new HotbarPreset()
+                .add(0, "WATER_BUCKET")
+                .add(1, "FIRE_RESISTANCE")
+                .add(2, "MILK_BUCKET")
+                .add(3, "POTION")
+                .add(4, "FOOD")
+                .add(5, "GOLDEN_APPLE")
+                .add(6, "BLOCK")
+                .add(7, "BUCKET")
+                .add(8, "SHIELD")
+                .offHand("SHIELD"));
+
+        PRESETS.put(ActivityType.IN_LAVA, new HotbarPreset()
+                .add(0, "WATER_BUCKET")
+                .add(1, "FIRE_RESISTANCE")
+                .add(2, "BLOCK")
+                .add(3, "GOLDEN_APPLE")
+                .add(4, "MILK_BUCKET")
+                .add(5, "BUCKET")
+                .add(6, "POTION")
+                .add(7, "ENDER_PEARL")
+                .add(8, "FOOD")
+                .offHand("TOTEM"));
+
+        PRESETS.put(ActivityType.DROWNING, new HotbarPreset()
+                .add(0, "BUCKET")
+                .add(1, "DOOR")
+                .add(2, "BLOCK")
+                .add(3, "POTION")
+                .add(4, "GOLDEN_APPLE")
+                .add(5, "FOOD")
+                .add(6, "PICKAXE")
+                .add(7, "TRIDENT")
+                .add(8, "FOOD"));
+
+        PRESETS.put(ActivityType.FALLING, new HotbarPreset()
+                .add(0, "ELYTRA")
+                .add(1, "FIREWORK")
+                .add(2, "WATER_BUCKET")
+                .add(3, "ENDER_PEARL")
+                .add(4, "POTION")
+                .add(5, "FOOD")
+                .add(6, "GOLDEN_APPLE")
+                .add(7, "BLOCK")
+                .add(8, "FOOD"));
+
+        PRESETS.put(ActivityType.POISONED, new HotbarPreset()
+                .add(0, "MILK_BUCKET")
+                .add(1, "POTION")
+                .add(2, "GOLDEN_APPLE")
+                .add(3, "FOOD")
+                .add(4, "HONEY_BOTTLE")
+                .add(5, "BUCKET")
+                .add(6, "SHIELD")
+                .add(7, "SWORD")
+                .add(8, "FOOD"));
+
+        PRESETS.put(ActivityType.WITHERING, new HotbarPreset()
+                .add(0, "MILK_BUCKET")
+                .add(1, "GOLDEN_APPLE")
+                .add(2, "ENCHANTED_GOLDEN_APPLE")
+                .add(3, "POTION")
+                .add(4, "FOOD")
+                .add(5, "BUCKET")
+                .add(6, "SHIELD")
+                .add(7, "SWORD")
+                .add(8, "FOOD")
+                .offHand("TOTEM"));
 
         // ==================== GENERAL PRESET ====================
             
