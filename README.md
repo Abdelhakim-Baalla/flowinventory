@@ -89,13 +89,23 @@ If something misclassifies, adjust config thresholds or file an issue with **act
 
 ---
 
-## Changelog
+## Release & host uploads
 
-See [CHANGELOG.md](CHANGELOG.md).
+See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (Git branches, GitHub Release, CurseForge, Modrinth) and **[docs/SEO_AND_DISCOVERY.md](docs/SEO_AND_DISCOVERY.md)** (tags and keywords for project pages).
+
+Use **`docs/LOCAL/`** for private machine paths or checklists — those files stay **off Git** (see `.gitignore`). Tracked template: [`docs/LOCAL/paths.example.md`](docs/LOCAL/paths.example.md).
+
+---
+
+## Community
+
+- **Repository:** [github.com/Abdelhakim-Baalla/flowinventory](https://github.com/Abdelhakim-Baalla/flowinventory)
+- **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
+- **Security:** [SECURITY.md](SECURITY.md)
 
 ---
 
 ## Author & links
 
 - **Author:** Abdelhakim Baalla  
-- **Repository / issues:** see `fabric.mod.json` `contact` section.
+- **Source & issues:** [github.com/Abdelhakim-Baalla/flowinventory](https://github.com/Abdelhakim-Baalla/flowinventory)

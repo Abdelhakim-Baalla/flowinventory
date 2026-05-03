@@ -55,5 +55,5 @@ The published **1.0.0** JAR was a **client-only** build: `fabric.mod.json` had `
 
 ---
 
-[1.1.0]: https://github.com/AbdelhakimBaalla/flowinventory/compare/v1.0.0...HEAD
-[1.0.0]: https://github.com/AbdelhakimBaalla/flowinventory/releases/tag/v1.0.0
+[1.1.0]: https://github.com/Abdelhakim-Baalla/flowinventory/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/Abdelhakim-Baalla/flowinventory/releases/tag/v1.0.0
