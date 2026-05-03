@@ -1,25 +1,68 @@
-# Gradle
+# ── Build ──────────────────────────────────
 .gradle/
 build/
 out/
+target/
+*.class
 
-# IntelliJ IDEA
+# JARs except Gradle wrapper (release jars must not be committed)
+*.jar
+!gradle/wrapper/gradle-wrapper.jar
+
+# ── IDE ────────────────────────────────────
 .idea/
 *.iml
 *.iws
 *.ipr
-
-# Eclipse
 .classpath
 .project
 .settings/
-
-# VS Code
 .vscode/
+*.swp
+*.swo
+*~
 
-# Minecraft run directories
+# ── Secrets & local overrides (never commit) ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+*.p12
+*.pfx
+secrets.properties
+credentials.json
+**/service-account*.json
+local.properties
+local.gradle
+gradle-local.properties
+init.gradle
+
+# ── Minecraft / Fabric dev ────────────────
 run/
+remappedSrc/
 
-# Generated sources (Yarn mappings)
-.gradle/
-gradle-8.8-bin.zip
+# ── OS files ───────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+$RECYCLE.BIN/
+
+# ── Gradle distribution zips ──────────────
+gradle-*.zip
+
+# ── Logs & JVM crashes ─────────────────────
+*.log
+logs/
+crash-reports/
+hs_err_pid*.log
+replay_pid*.txt
+
+# ── Local-only docs (PC paths, host tokens, private checklists) ──
+docs/LOCAL/*
+!docs/LOCAL/.gitkeep
+!docs/LOCAL/*.example.md
+docs/**/*.local.md
+DEPLOY.private.md

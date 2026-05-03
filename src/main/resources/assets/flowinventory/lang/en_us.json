@@ -4,7 +4,9 @@
 
   "category.flowinventory.main": "FlowInventory",
   "key.flowinventory.sort": "Sort Inventory",
-  "key.flowinventory.next_profile": "Cycle Activity Profile",
+  "key.flowinventory.next_profile": "Next Activity Profile (G)",
+  "key.flowinventory.prev_profile": "Previous Activity Profile (V)",
+  "key.flowinventory.toggle_auto": "Toggle Activity Auto-Detect (B)",
   "key.flowinventory.open_gui": "Open FlowInventory Settings",
 
   "flowinventory.activity.mining": "Mining",

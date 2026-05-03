@@ -12,9 +12,9 @@ base {
 
 repositories {
 	// Cloth Config — for settings GUI
-	maven { url "https://maven.shedaniel.me/" }
+	maven { url = uri("https://maven.shedaniel.me/") }
 	// Mod Menu — shows mod in the mods list
-	maven { url "https://maven.terraformersmc.com/releases/" }
+	maven { url = uri("https://maven.terraformersmc.com/releases/") }
 }
 
 loom {
@@ -62,6 +62,9 @@ java {
 
 jar {
 	from("LICENSE") {
+		rename { "${it}_${project.base.archivesName.get()}" }
+	}
+	from("NOTICE") {
 		rename { "${it}_${project.base.archivesName.get()}" }
 	}
 }

@@ -1,0 +1,2 @@
+# Keep this file so Git tracks the `docs/LOCAL/` folder.
+# Put private notes here (e.g. `my-pc.paths.md`) — they are gitignored via `docs/LOCAL/*`.
