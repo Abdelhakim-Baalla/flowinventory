@@ -12,8 +12,18 @@ import net.minecraft.entity.effect.StatusEffects;
 import net.minecraft.entity.mob.HostileEntity;
 import net.minecraft.entity.passive.AnimalEntity;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.AxeItem;
+import net.minecraft.item.BowItem;
+import net.minecraft.item.CrossbowItem;
+import net.minecraft.item.FishingRodItem;
+import net.minecraft.item.HoeItem;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.PickaxeItem;
+import net.minecraft.item.ShieldItem;
+import net.minecraft.item.ShovelItem;
+import net.minecraft.item.SwordItem;
+import net.minecraft.item.TridentItem;
 import net.minecraft.registry.Registries;
 import net.minecraft.registry.RegistryKey;
 import net.minecraft.util.math.BlockPos;
@@ -466,12 +476,27 @@ public class ActivityDetector {
         return upperPath.contains("_" + word + "_");
     }
 
+    /** Tools / weapons in hand should not be re-labelled as “just food” (e.g. axes). */
+    private static boolean isMeleeOrToolHeldCategory(Item item) {
+        if (item instanceof SwordItem || item instanceof PickaxeItem || item instanceof ShovelItem
+                || item instanceof AxeItem || item instanceof HoeItem || item instanceof BowItem
+                || item instanceof CrossbowItem || item instanceof TridentItem || item instanceof ShieldItem
+                || item instanceof FishingRodItem) {
+            return true;
+        }
+        return Registries.ITEM.getId(item).getPath().contains("mace");
+    }
+
     private void scoreFromItem(ItemStack stack, int weight) {
         if (stack == null || stack.isEmpty()) return;
 
         Item item = stack.getItem();
         String path = Registries.ITEM.getId(item).getPath();
         String upper = path.toUpperCase();
+
+        if (item.getFoodComponent() != null && !isMeleeOrToolHeldCategory(item)) {
+            bump(ActivityType.FOOD, 36 * weight);
+        }
 
         // ── Weapons (use word-boundary checks to avoid AXE-in-WAXED etc.) ──
         if (hasWord(upper, "SWORD") || upper.endsWith("_SWORD")) {
@@ -624,10 +649,6 @@ public class ActivityDetector {
             bump(ActivityType.FARMING, 12 * weight);
         }
 
-        if (item.getFoodComponent() != null) {
-            bump(ActivityType.FOOD, 6 * weight);
-            bump(ActivityType.FOOD, 4 * weight);
-        }
         if (upper.contains("GOLDEN_APPLE") || upper.contains("ENCHANTED_GOLDEN_APPLE")) {
             bump(ActivityType.FOOD, 10 * weight);
         }

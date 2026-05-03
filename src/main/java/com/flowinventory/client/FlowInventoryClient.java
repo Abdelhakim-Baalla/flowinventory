@@ -5,6 +5,7 @@ import com.flowinventory.core.InventoryManager;
 import com.flowinventory.core.InventoryScanner;
 import com.flowinventory.network.NetworkHandler;
 import com.flowinventory.profiles.ActivityCycle;
+import com.flowinventory.profiles.ActivityCycleRules;
 import com.flowinventory.profiles.ActivityType;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -124,63 +125,47 @@ public class FlowInventoryClient implements ClientModInitializer {
     }
 
     /**
-     * Walks the curated cycle list in the requested direction and stops at
-     * the first activity for which the player owns at least the primary
-     * item. Falls back to GENERAL if literally nothing matches.
+     * G / V: walk the cycle in order and pick the next activity you can actually
+     * outfit (see {@link ActivityCycleRules}) — not “any preset slot including FOOD”.
      */
     private static void cycleProfile(PlayerEntity player, boolean forward) {
         if (player == null) return;
 
         ActivityType current = FlowInventoryMod.activityDetector.getCurrentActivity();
-        int size = ActivityCycle.DEFAULT.size();
+        var order = ActivityCycle.DEFAULT;
+        int n = order.size();
         int startIdx = ActivityCycle.indexOf(current);
-        if (startIdx == -1) startIdx = forward ? -1 : 0;
+        if (startIdx < 0) startIdx = 0;
 
         ActivityType picked = null;
-        for (int i = 1; i <= size; i++) {
+        for (int step = 1; step <= n; step++) {
             int idx = forward
-                    ? (startIdx + i + size) % size
-                    : (startIdx - i + size) % size;
-            ActivityType candidate = ActivityCycle.DEFAULT.get(idx);
-            if (candidate == current) continue;
-            if (InventoryScanner.canUseActivity(player, candidate)) {
+                    ? (startIdx + step) % n
+                    : (startIdx - step + n) % n;
+            ActivityType candidate = order.get(idx);
+            if (candidate == current && step < n) continue;
+            if (ActivityCycleRules.canOfferOnCycle(player, candidate)) {
                 picked = candidate;
                 break;
             }
         }
 
         if (picked == null) {
-            // Nothing else in the cycle is usable.
-            //   - If the player is already on a usable activity, just say so.
-            //   - Otherwise degrade to GENERAL.
-            if (InventoryScanner.canUseActivity(player, current)) {
-                int matches = InventoryScanner.countMatchingPresetSlots(player, current);
-                player.sendMessage(
-                        Text.literal("\u2192 " + current.icon + " " + current.displayName
-                                + " is the only usable profile (" + matches + " items)")
-                                .styled(s -> s.withColor(0xFFAA00)),
-                        true
-                );
-                return;
-            }
-            picked = ActivityType.GENERAL;
-            if (current == ActivityType.GENERAL) {
-                player.sendMessage(
-                        Text.literal("\u26A0 No usable profile found in your inventory")
-                                .styled(s -> s.withColor(0xFFAA00)),
-                        true
-                );
-                return;
-            }
+            player.sendMessage(
+                    Text.literal("\u2192 No other profile in the cycle fits your inventory right now")
+                            .styled(s -> s.withColor(0xFFAA00)),
+                    true
+            );
+            return;
         }
 
         FlowInventoryMod.activityDetector.forceSetActivity(picked);
 
         int matches = InventoryScanner.countMatchingPresetSlots(player, picked);
-        String label = "Profile: " + picked.icon + " " + picked.displayName
-                + " (" + matches + " items ready)";
         player.sendMessage(
-                Text.literal(label).styled(s -> s.withColor(0x44FF44)),
+                Text.literal("Profile: " + picked.icon + " " + picked.displayName
+                        + " (" + matches + " preset types matched)")
+                        .styled(s -> s.withColor(0x44FF44)),
                 true
         );
     }
