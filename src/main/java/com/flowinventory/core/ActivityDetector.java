@@ -198,6 +198,8 @@ public class ActivityDetector {
         // 9. Nearby workstations & PvP players
         scoreFromBlocksAndPlayers(player);
 
+        dampenCombatWhileEatingMainHand(held, offhand);
+
         // 10. Boost the current activity to reduce flapping (ties → same winner)
         if (currentActivity != ActivityType.GENERAL && currentActivity != ActivityType.UNKNOWN) {
             activityWeights.merge(currentActivity, 28, Integer::sum);
@@ -291,6 +293,19 @@ public class ActivityDetector {
                 NetworkHandler.sendActivityChange(currentActivity);
             }
         }
+    }
+
+    /**
+     * Edible in main hand (not a weapon/tool) with no weapon in off-hand — context
+     * combat bumps (night, sneak, far mobs) must not beat {@link ActivityType#FOOD}.
+     */
+    private void dampenCombatWhileEatingMainHand(ItemStack held, ItemStack offhand) {
+        if (held == null || held.isEmpty()) return;
+        Item i = held.getItem();
+        if (i.getFoodComponent() == null) return;
+        if (isMeleeOrToolHeldCategory(i)) return;
+        if (isCombatReady(offhand)) return;
+        activityWeights.merge(ActivityType.COMBAT, -95, Integer::sum);
     }
 
     // ==================== EMERGENCY COMBAT ====================

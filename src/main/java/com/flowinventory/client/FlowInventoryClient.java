@@ -27,6 +27,14 @@ public class FlowInventoryClient implements ClientModInitializer {
     public static KeyBinding KEY_TOGGLE_AUTO;
     
     public static InventoryManager inventoryManager;
+
+    /**
+     * One deliberate step per time window — {@code wasPressed()} can fire several times
+     * per tick when OS key-repeat feeds the game, which produced log storms like 8×
+     * "Activity manually set" from a single long press on G.
+     */
+    private static long lastProfileCycleAt;
+    private static final long PROFILE_CYCLE_COOLDOWN_MS = 160;
     
     @Override
     public void onInitializeClient() {
@@ -72,13 +80,16 @@ public class FlowInventoryClient implements ClientModInitializer {
             // can change currentActivity in the same frame and cycleProfile() reads
             // the wrong starting point (feels like "G skipped the wrong profile").
 
-            // Next profile (G) — smart cycle that skips activities the player has no items for
-            while (KEY_NEXT_PROFILE.wasPressed()) {
+            long tickNow = System.currentTimeMillis();
+            // Single consumption per tick + cooldown — never burst-cycle with key repeat
+            if (KEY_NEXT_PROFILE.wasPressed()
+                    && tickNow - lastProfileCycleAt >= PROFILE_CYCLE_COOLDOWN_MS) {
+                lastProfileCycleAt = tickNow;
                 cycleProfile(client.player, true);
             }
-
-            // Previous profile (V) — same smart cycle, reversed
-            while (KEY_PREV_PROFILE.wasPressed()) {
+            if (KEY_PREV_PROFILE.wasPressed()
+                    && tickNow - lastProfileCycleAt >= PROFILE_CYCLE_COOLDOWN_MS) {
+                lastProfileCycleAt = tickNow;
                 cycleProfile(client.player, false);
             }
 
@@ -86,13 +97,13 @@ public class FlowInventoryClient implements ClientModInitializer {
             FlowInventoryMod.activityDetector.tick(client.player);
 
             // Handle sort keybind
-            while (KEY_SORT.wasPressed()) {
+            if (KEY_SORT.wasPressed()) {
                 NetworkHandler.sendSortRequest();
                 FlowInventoryMod.LOGGER.info("[FlowInventory] Sort packet sent!");
             }
             
             // Toggle auto-detect (B)
-            while (KEY_TOGGLE_AUTO.wasPressed()) {
+            if (KEY_TOGGLE_AUTO.wasPressed()) {
                 FlowInventoryMod.config.autoDetectActivity = !FlowInventoryMod.config.autoDetectActivity;
                 FlowInventoryMod.config.save();
                 client.player.sendMessage(
