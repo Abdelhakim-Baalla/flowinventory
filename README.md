@@ -93,6 +93,8 @@ If something misclassifies, adjust config thresholds or file an issue with **act
 
 See **[docs/DEPLOYMENT.md](docs/DEPLOYMENT.md)** (Git branches, GitHub Release, CurseForge, Modrinth) and **[docs/SEO_AND_DISCOVERY.md](docs/SEO_AND_DISCOVERY.md)** (tags and keywords for project pages).
 
+**NeoForge / multi-loader:** see **[docs/NEOFORGE_PORT.md](docs/NEOFORGE_PORT.md)** (branching vs Architectury; Fabric tree stays intact until you port on another branch).
+
 Use **`docs/LOCAL/`** for private machine paths or checklists — those files stay **off Git** (see `.gitignore`). Tracked template: [`docs/LOCAL/paths.example.md`](docs/LOCAL/paths.example.md).
 
 ---
