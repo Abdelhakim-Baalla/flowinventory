@@ -2,7 +2,10 @@
 .gradle/
 build/
 out/
+target/
 *.class
+
+# JARs except Gradle wrapper (release jars must not be committed)
 *.jar
 !gradle/wrapper/gradle-wrapper.jar
 
@@ -19,22 +22,40 @@ out/
 *.swo
 *~
 
-# ── Minecraft run directories ─────────────
+# ── Secrets & local overrides (never commit) ──
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa
+id_rsa.pub
+*.p12
+*.pfx
+secrets.properties
+credentials.json
+**/service-account*.json
+local.properties
+local.gradle
+gradle-local.properties
+init.gradle
+
+# ── Minecraft / Fabric dev ────────────────
 run/
+remappedSrc/
 
 # ── OS files ───────────────────────────────
 .DS_Store
 Thumbs.db
 desktop.ini
+$RECYCLE.BIN/
 
 # ── Gradle distribution zips ──────────────
 gradle-*.zip
 
-# ── Logs ───────────────────────────────────
+# ── Logs & JVM crashes ─────────────────────
 *.log
 logs/
 crash-reports/
-
-# ── Mod output ─────────────────────────────
-*.jar
-!gradle/wrapper/gradle-wrapper.jar
+hs_err_pid*.log
+replay_pid*.txt

@@ -3,7 +3,7 @@
   "id": "flowinventory",
   "version": "${version}",
   "name": "FlowInventory",
-  "description": "Smart AI-style inventory management. Auto-detects your activity (Mining, Combat, Building, Farming) and organizes your inventory automatically. No more manual sorting!",
+  "description": "Smart inventory sorting and activity-based hotbar for Fabric 1.20.1. Sort with R (smart/alphabetical/tier), cycle profiles with G/V, optional auto-detect. Singleplayer and dedicated server (install on server + clients). Bundles Cloth Config for Mod Menu; requires Fabric API.",
   "authors": [
     "Abdelhakim Baalla"
   ],

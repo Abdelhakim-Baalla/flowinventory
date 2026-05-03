@@ -1,143 +1,101 @@
-# ⚡ FlowInventory
+# FlowInventory
 
-**Smart AI-style inventory management for Minecraft 1.20.1**
+Smart inventory sorting and **activity-aware hotbar** layout for **Minecraft 1.20.1** (Fabric).
 
-> Stop wasting time sorting. Start playing.
-
----
-
-## ✨ What makes FlowInventory different?
-
-Most inventory mods just sort items alphabetically or by type.
-
-**FlowInventory learns how YOU play.**
-
-It detects your current activity (⛏ Mining, ⚔ Combat, 🧱 Building, 🌾 Farming) and:
-- **Auto-organizes** your entire inventory (hotbar + main) with smart category sorting
-- **Detects activity changes** in real-time (~0.5s response time)
-- **Merges scattered stacks** — no more 3 separate piles of cobblestone
+FlowInventory estimates what you are doing (mining, combat, building, farming, exploration, …), lets you **cycle profiles** with keybinds, applies **server-side** hotbar rules, and sorts storage by category (with optional activity-based ordering).
 
 ---
 
-## 🎮 Features
+## Requirements
 
-| Feature | Description |
-|---|---|
-| **Smart Sort** (R key) | Sorts full inventory (hotbar + main) by category, then by name |
-| **In-Screen Sort** | Press R while inventory is open — sorts instantly without closing |
-| **Stack Merging** | Automatically combines scattered partial stacks |
-| **Activity Detection** | Detects Mining/Combat/Building/Farming from held item + nearby mobs |
-| **Manual Cycle** (G key) | Manually switch between activity profiles |
-| **HUD Overlay** | See your current detected activity in the top-right corner |
-| **Configurable** | JSON config for detection range, HUD position, and more |
+| Component | Version |
+|-----------|---------|
+| Minecraft | **1.20.1** |
+| Fabric Loader | **≥ 0.15.0** |
+| [Fabric API](https://modrinth.com/mod/fabric-api) | Any build for 1.20.1 |
+| Java | **21** |
 
----
-
-## ⌨️ Keybinds
-
-| Key | Action |
-|---|---|
-| `R` | Sort inventory (hotbar + main inventory) — works in-game and inside inventory screen |
-| `G` | Cycle to next activity profile |
-
-All keybinds can be rebound in **Options → Controls → FlowInventory**
+**Dedicated server:** install this mod on the **server** and on **clients** that use sorting / profile switching. Vanilla clients can still join; they simply will not use the features.
 
 ---
 
-## 📦 Sort Categories
+## Features
 
-Items are sorted in this priority order:
-
-| Priority | Category | Examples |
-|---|---|---|
-| 1 | Swords | Diamond Sword, Iron Sword |
-| 2 | Pickaxes | Diamond Pickaxe, Stone Pickaxe |
-| 3 | Axes | Iron Axe, Netherite Axe |
-| 4 | Shovels | Diamond Shovel |
-| 5 | Hoes | Iron Hoe |
-| 6 | Armor | Helmet, Chestplate, Leggings, Boots |
-| 7 | Shields | Shield |
-| 8 | Food | Steak, Bread, Golden Apple |
-| 9 | Blocks | Cobblestone, Planks, Dirt |
-| 10 | Other | Everything else |
-
-Within each category, items are sorted alphabetically by name.
+- **Sort (R)** — Sorts player inventory (optionally excluding hotbar via config). Modes: **SMART** (categories + name), **ALPHABETICAL**, **TIER**. Optional stack merge; when using SMART from the client, sort can bias order toward the **current activity**.
+- **Activity detection** — Heuristic scoring from held items, nearby mobs, context (tunable in config).
+- **Profiles (G / V)** — Cycle **forward / backward** through a curated list of activities (not every enum value). Manual switch applies a short **lock** so auto-detect does not instantly overwrite your choice.
+- **Hotbar presets** — Per-activity layout + **main-hand selection** (e.g. exploration prefers compass/map before sword; farming prefers hoe/seeds/crops; emergencies prefer milk, potions, water bucket, etc.).
+- **HUD** — Optional overlay for current activity and lock countdown.
+- **Config** — JSON file + **Mod Menu** screen (Cloth Config). Cloth Config classes are **bundled** in the FlowInventory JAR; you still need Fabric API separately.
 
 ---
 
-## 🔧 Installation
+## Controls
 
-1. Install [Fabric Loader](https://fabricmc.net/use/) for Minecraft 1.20.1
-2. Install [Fabric API](https://modrinth.com/mod/fabric-api)
-3. Download FlowInventory and place in your `mods` folder
-4. Launch Minecraft — done!
+Rebind in **Options → Controls → FlowInventory**.
 
-**Optional:** Install [Mod Menu](https://modrinth.com/mod/modmenu) to see FlowInventory in the mod list.
-
-### Requirements
-
-| Dependency | Version |
-|---|---|
-| Minecraft | 1.20.1 |
-| Fabric Loader | ≥ 0.15.0 |
-| Fabric API | Any |
-| Java | ≥ 21 |
+| Default key | Action |
+|-------------|--------|
+| **R** | Sort inventory (in-world or inside inventory screen, via mixin) |
+| **G** | Next activity profile |
+| **V** | Previous activity profile |
+| **B** | Toggle **auto-detect activity** on/off (persists in config) |
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
-Config file is located at: `.minecraft/config/flowinventory/config.json`
+Path: `.minecraft/config/flowinventory/config.json`
 
-```json
-{
-  "autoDetectActivity": true,
-  "autoApplyProfile": true,
-  "activitySwitchDelay": 30,
-  "combatDetectionRange": 8,
-  "sortMode": "SMART",
-  "mergeStacks": true,
-  "showHudOverlay": true,
-  "hudPosition": "TOP_RIGHT",
-  "showActivityMessages": true,
-  "showKeyHints": true,
-  "enablePatternLearning": true
-}
+Notable options:
+
+- `autoDetectActivity`, `autoApplyProfile` — auto behaviour.
+- `sortMode` — `SMART` | `ALPHABETICAL` | `TIER`
+- `mergeStacks`, `lockHotbar` — sort behaviour.
+- `combatDetectionRange`, `activitySwitchDelay`, thresholds — detection tuning.
+
+See `FlowConfig.java` for the full field list and defaults.
+
+---
+
+## Building
+
+```bash
+./gradlew build
 ```
 
----
-
-## 🤝 Compatibility
-
-- ✅ Just Enough Items (JEI)
-- ✅ Roughly Enough Items (REI)
-- ✅ Mod Menu
-- ✅ All major modpacks
-- ⚠️ May conflict with other mods that also modify inventory sorting
+Output: `build/libs/flowinventory-<version>.jar`
 
 ---
 
-## 🗺️ Roadmap
+## Distribution & license
 
-- **v1.0** — Core features (sort, profiles, activity detection) ✅
-- **v1.1** — Improved pattern learning, JEI deep integration
-- **v1.2** — Cloud profile sync (Patreon feature)
-- **v2.0** — Forge/NeoForge port, Minecraft 1.21.x support
+- **License:** [MIT](LICENSE) — see `LICENSE` in the repo; a copy is renamed and embedded in the built JAR.
+- **Third-party:** [NOTICE](NOTICE) — bundled Cloth Config; Fabric API is a separate download.
 
 ---
 
-## 💖 Support Development
+## Scope and limitations (honest checklist)
 
-If FlowInventory saves you time, consider supporting:
-- ⭐ Star this repo on GitHub
-- 👍 Leave a review on Modrinth/CurseForge
+The mod is designed for **survival-style play** on **Fabric 1.20.1**. It does **not** try to cover every possible world state exhaustively. In particular:
+
+- **Other players / mobs** — Detection uses **your** client or **your** server player; it does not “know” what everyone on the server is doing.
+- **Creative / Spectator** — Less relevant; sorting still runs if invoked, but profile automation may be pointless.
+- **Modded items** — Heuristics use paths, tags, and `Item` classes where possible; odd mods may classify as generic categories or `MISC`.
+- **Containers** — Sort applies to **player inventory**, not chests or mods that replace inventory handling entirely.
+- **Conflicts** — Other mods that force hotbar slot, cancel packets, or replace screen hooks may interfere.
+
+If something misclassifies, adjust config thresholds or file an issue with **activity**, **held items**, and **steps**.
 
 ---
 
-## 📝 License
+## Changelog
 
-MIT License — free to use, modify, and distribute with attribution.
+See [CHANGELOG.md](CHANGELOG.md).
 
 ---
 
-*Made with ❤️ by Abdelhakim Baalla*
+## Author & links
+
+- **Author:** Abdelhakim Baalla  
+- **Repository / issues:** see `fabric.mod.json` `contact` section.
