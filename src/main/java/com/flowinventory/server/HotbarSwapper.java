@@ -29,8 +29,14 @@ public final class HotbarSwapper {
 
     private static final int OFFHAND_SLOT_INDEX = 0;
 
-    /** Ignore weak heuristic matches so e.g. snacks do not occupy tool slots. */
-    private static final int PRESET_FIT_MIN_SCORE = 48;
+    /**
+     * Min score to pull stacks into preset hotbar slots. Keeps misfits (e.g. food in a tool lane)
+     * out while still accepting wooden/stone tools (scores often ~30–45; 48 left hands on random items).
+     */
+    private static final int PRESET_FIT_MIN_FOR_PLACE = 32;
+
+    /** Min score to align main hand / consider a stack on-bar as matching its role (any real hit). */
+    private static final int PRESET_FIT_MIN_FOR_HAND = 1;
 
     private HotbarSwapper() {}
 
@@ -63,18 +69,18 @@ public final class HotbarSwapper {
             int currentScore = currentInTarget.isEmpty()
                     ? -1
                     : ItemHeuristics.evaluate(currentInTarget, desiredType);
-            if (currentScore >= PRESET_FIT_MIN_SCORE) foundAnyMatch = true;
+            if (currentScore >= PRESET_FIT_MIN_FOR_PLACE) foundAnyMatch = true;
 
             int bestSlot = findBestInventorySlotForType(inventory, desiredType, lockedSlots);
-            if (bestSlot == -1 || ItemHeuristics.evaluate(inventory.getStack(bestSlot), desiredType) < PRESET_FIT_MIN_SCORE) {
-                if (currentScore >= PRESET_FIT_MIN_SCORE) lockedSlots.add(targetSlot);
+            if (bestSlot == -1 || ItemHeuristics.evaluate(inventory.getStack(bestSlot), desiredType) < PRESET_FIT_MIN_FOR_PLACE) {
+                if (currentScore >= PRESET_FIT_MIN_FOR_PLACE) lockedSlots.add(targetSlot);
                 continue;
             }
 
             int bestScore = ItemHeuristics.evaluate(inventory.getStack(bestSlot), desiredType);
-            if (bestScore >= PRESET_FIT_MIN_SCORE) foundAnyMatch = true;
+            if (bestScore >= PRESET_FIT_MIN_FOR_PLACE) foundAnyMatch = true;
 
-            if (bestScore >= PRESET_FIT_MIN_SCORE && bestScore > currentScore && bestSlot != targetSlot) {
+            if (bestScore >= PRESET_FIT_MIN_FOR_PLACE && bestScore > currentScore && bestSlot != targetSlot) {
                 ItemStack newStack = inventory.getStack(bestSlot).copy();
 
                 if (!currentInTarget.isEmpty()) {
@@ -94,7 +100,7 @@ public final class HotbarSwapper {
                 }
                 lockedSlots.add(targetSlot);
                 swapsPerformed++;
-            } else if (currentScore >= PRESET_FIT_MIN_SCORE) {
+            } else if (currentScore >= PRESET_FIT_MIN_FOR_PLACE) {
                 lockedSlots.add(targetSlot);
             }
         }
@@ -141,7 +147,7 @@ public final class HotbarSwapper {
             if (st.isEmpty()) continue;
 
             int ev = ItemHeuristics.evaluate(st, want);
-            if (ev >= PRESET_FIT_MIN_SCORE) {
+            if (ev >= PRESET_FIT_MIN_FOR_HAND) {
                 applySelectedSlot(player, slot);
                 return;
             }
@@ -187,17 +193,17 @@ public final class HotbarSwapper {
         if (primaryType == null) return;
 
         ItemStack held = inv.getStack(inv.selectedSlot);
-        if (!held.isEmpty() && ItemHeuristics.evaluate(held, primaryType) >= PRESET_FIT_MIN_SCORE) {
+        if (!held.isEmpty() && ItemHeuristics.evaluate(held, primaryType) >= PRESET_FIT_MIN_FOR_HAND) {
             return;
         }
 
         int targetSlot = -1;
         ItemStack s0 = inv.getStack(0);
-        if (!s0.isEmpty() && ItemHeuristics.evaluate(s0, primaryType) >= PRESET_FIT_MIN_SCORE) {
+        if (!s0.isEmpty() && ItemHeuristics.evaluate(s0, primaryType) >= PRESET_FIT_MIN_FOR_HAND) {
             targetSlot = 0;
         }
         if (targetSlot < 0) {
-            targetSlot = findBestHotbarSlotForType(inv, primaryType, PRESET_FIT_MIN_SCORE);
+            targetSlot = findBestHotbarSlotForType(inv, primaryType, PRESET_FIT_MIN_FOR_HAND);
         }
         if (targetSlot < 0 && preset != null && preset.slots != null) {
             for (int i = 0; i < 9; i++) {
@@ -206,7 +212,7 @@ public final class HotbarSwapper {
                 if (deferSnackSlotForHandSelection(w, activity)) continue;
                 ItemStack st = inv.getStack(i);
                 if (st.isEmpty() || w == null) continue;
-                if (ItemHeuristics.evaluate(st, w) >= PRESET_FIT_MIN_SCORE) {
+                if (ItemHeuristics.evaluate(st, w) >= PRESET_FIT_MIN_FOR_HAND) {
                     targetSlot = i;
                     break;
                 }

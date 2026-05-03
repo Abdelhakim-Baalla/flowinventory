@@ -18,9 +18,19 @@ public class FlowInventoryServer {
         ServerPlayNetworking.registerGlobalReceiver(
             SortInventoryPacket.ID,
             (server, player, handler, buf, responseSender) -> {
+                ActivityType sortContext = ActivityType.GENERAL;
+                if (buf.readableBytes() > 0) {
+                    try {
+                        sortContext = ActivityType.valueOf(buf.readString());
+                    } catch (IllegalArgumentException e) {
+                        FlowInventoryMod.LOGGER.debug(
+                                "[FlowInventory] Sort packet had unknown activity; using GENERAL");
+                    }
+                }
+                final ActivityType ctx = sortContext;
                 server.execute(() -> {
                     if (player instanceof ServerPlayerEntity serverPlayer) {
-                        sortInventory(serverPlayer);
+                        sortInventory(serverPlayer, ctx);
                     }
                 });
             }
@@ -69,7 +79,7 @@ public class FlowInventoryServer {
         };
     }
     
-    private static void sortInventory(ServerPlayerEntity player) {
+    private static void sortInventory(ServerPlayerEntity player, ActivityType sortContext) {
         PlayerInventory inventory = player.getInventory();
         
         int startSlot = FlowInventoryMod.config.lockHotbar ? 9 : 0;
@@ -105,8 +115,8 @@ public class FlowInventoryServer {
             }
             String catA = ItemDatabase.getPrimaryCategory(a.getItem());
             String catB = ItemDatabase.getPrimaryCategory(b.getItem());
-            int orderA = getCategoryPriority(catA);
-            int orderB = getCategoryPriority(catB);
+            int orderA = getCategoryPriority(catA) + activityCategoryBias(sortContext, catA);
+            int orderB = getCategoryPriority(catB) + activityCategoryBias(sortContext, catB);
             if (orderA != orderB) return orderA - orderB;
             return a.getName().getString().compareToIgnoreCase(b.getName().getString());
         });
@@ -206,14 +216,90 @@ public class FlowInventoryServer {
             case "BOOTS": return 12;
             case "SHIELD": return 13;
             case "FOOD": return 14;
-            case "BLOCK": return 15;
-            case "REDSTONE": return 16;
-            case "POTION": return 17;
-            case "TORCH": return 18;
-            case "GEM": return 19;
-            case "INGOT": return 20;
-            case "RAW_MATERIAL": return 21;
+            case "CROP": return 15;
+            case "BLOCK": return 16;
+            case "REDSTONE": return 17;
+            case "REDSTONE_COMPONENT": return 18;
+            case "POWERED_COMPONENT": return 19;
+            case "RAIL": return 20;
+            case "POTION": return 21;
+            case "TORCH": return 22;
+            case "GEM": return 23;
+            case "INGOT": return 24;
+            case "RAW_MATERIAL": return 25;
             default: return 50;
         }
+    }
+
+    /** Negative pulls categories earlier when sorting (lower sort key = earlier in inventory). */
+    private static int activityCategoryBias(ActivityType ctx, String cat) {
+        if (ctx == null || cat == null) return 0;
+        return switch (ctx) {
+            case MINING -> switch (cat) {
+                case "PICKAXE", "SHOVEL" -> -14;
+                case "AXE_TOOL" -> -8;
+                case "TORCH", "LANTERN", "LIGHT_SOURCE" -> -10;
+                case "BLOCK" -> -5;
+                case "COAL" -> -4;
+                default -> 0;
+            };
+            case BUILDING -> switch (cat) {
+                case "BLOCK", "STAIRS", "SLAB", "WALL", "FENCE", "DOOR", "TRAPDOOR" -> -18;
+                case "TORCH", "LANTERN", "LIGHT_SOURCE" -> -12;
+                case "PICKAXE", "SHOVEL", "AXE_TOOL" -> -6;
+                default -> 0;
+            };
+            case FARMING -> switch (cat) {
+                case "HOE" -> -16;
+                case "CROP" -> -14;
+                case "BUCKET" -> -10;
+                default -> 0;
+            };
+            case COMBAT, EMERGENCY_COMBAT -> switch (cat) {
+                case "SWORD", "AXE_COMBAT", "TRIDENT", "MACE" -> -14;
+                case "BOW", "CROSSBOW" -> -12;
+                case "SHIELD" -> -10;
+                case "POTION" -> -6;
+                case "FOOD" -> -4;
+                default -> 0;
+            };
+            case REDSTONE -> switch (cat) {
+                case "REDSTONE", "REDSTONE_COMPONENT", "POWERED_COMPONENT" -> -16;
+                case "RAIL" -> -12;
+                case "TORCH", "LANTERN" -> -8;
+                default -> 0;
+            };
+            case CRAFTING -> switch (cat) {
+                case "BOOK", "PAPER" -> -14;
+                case "INGOT", "RAW_MATERIAL", "NUGGET", "GEM" -> -10;
+                default -> 0;
+            };
+            case EXPLORATION -> switch (cat) {
+                case "COMPASS", "MAP", "CLOCK", "SPYGLASS" -> -14;
+                case "TORCH", "LANTERN" -> -8;
+                case "BOAT", "ELYTRA" -> -6;
+                default -> 0;
+            };
+            case TRAVEL -> switch (cat) {
+                case "ELYTRA", "FIREWORK" -> -14;
+                case "BOAT", "MINECART", "SADDLE" -> -10;
+                case "RAIL" -> -6;
+                default -> 0;
+            };
+            case UTILITY -> switch (cat) {
+                case "TOOL", "BUCKET", "FLUID_CONTAINER", "BUNDLE" -> -12;
+                default -> 0;
+            };
+            case FOOD -> switch (cat) {
+                case "FOOD" -> -18;
+                case "POTION", "BOTTLE" -> -6;
+                default -> 0;
+            };
+            case GENERAL -> switch (cat) {
+                case "SWORD", "PICKAXE", "TORCH" -> -4;
+                default -> 0;
+            };
+            default -> 0;
+        };
     }
 }

@@ -179,7 +179,8 @@ public class ItemDatabase {
                 "bamboo", "sugar_cane", "cocoa_beans", "kelp",
                 "wheat_seeds", "beetroot_seeds", "pumpkin_seeds", "melon_seeds",
                 "torchflower_seeds", "pitcher_pod", "pitcher_plant",
-                "nether_wart", "warped_fungus", "crimson_fungus");
+                "nether_wart", "warped_fungus", "crimson_fungus",
+                "bone_meal");
     }
 
     private static void registerBlocks() {
@@ -197,7 +198,11 @@ public class ItemDatabase {
                 "moss_block", "moss_carpet", "azalea", "flowering_azalea",
                 "spore_blossom", "big_dripleaf", "small_dripleaf",
                 "amethyst_block", "budding_amethyst", "calcite", "tuff",
-                "dripstone_block", "pointed_dripstone");
+                "dripstone_block", "pointed_dripstone",
+                "ladder", "scaffolding", "chain", "vine",
+                "cobweb", "glow_lichen", "hanging_roots",
+                "crafting_table", "smithing_table", "cartography_table",
+                "fletching_table", "loom", "grindstone", "stonecutter");
     }
 
     private static void registerWoodFamilies() {
@@ -556,7 +561,7 @@ public class ItemDatabase {
                 "PICKAXE", "SHOVEL", "AXE_TOOL", "HOE",
                 "HELMET", "CHESTPLATE", "LEGGINGS", "BOOTS", "SHIELD",
                 "ELYTRA", "HORSE_ARMOR",
-                "FOOD", "POTION", "BREWING_INGREDIENT",
+                "FOOD", "CROP", "POTION", "BREWING_INGREDIENT",
                 "BLOCK", "STAIRS", "SLAB", "WALL", "FENCE", "DOOR", "TRAPDOOR",
                 "REDSTONE", "REDSTONE_COMPONENT", "POWERED_COMPONENT", "RAIL",
                 "ORE", "RAW_MATERIAL", "INGOT", "NUGGET", "GEM", "COAL",

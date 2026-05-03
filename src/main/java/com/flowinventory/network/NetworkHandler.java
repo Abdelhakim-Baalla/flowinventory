@@ -1,5 +1,6 @@
 package com.flowinventory.network;
 
+import com.flowinventory.FlowInventoryMod;
 import com.flowinventory.profiles.ActivityType;
 import net.fabricmc.api.EnvType;
 import net.fabricmc.api.Environment;
@@ -26,7 +27,13 @@ public class NetworkHandler {
     public static void sendSortRequest() {
         MinecraftClient client = MinecraftClient.getInstance();
         if (client == null || client.getNetworkHandler() == null) return;
-        
-        ClientPlayNetworking.send(SortInventoryPacket.ID, PacketByteBufs.empty());
+
+        ActivityType ctx = ActivityType.GENERAL;
+        if (FlowInventoryMod.activityDetector != null) {
+            ctx = FlowInventoryMod.activityDetector.getCurrentActivity();
+        }
+        PacketByteBuf buf = PacketByteBufs.create();
+        buf.writeString(ctx.name());
+        ClientPlayNetworking.send(SortInventoryPacket.ID, buf);
     }
 }
