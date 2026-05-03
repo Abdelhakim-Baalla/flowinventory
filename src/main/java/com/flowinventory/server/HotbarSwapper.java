@@ -13,60 +13,46 @@ import java.util.HashSet;
 import java.util.Set;
 
 /**
- * Re-arranges the player's hotbar to match a {@link HotbarPreset} for the
- * currently detected {@link ActivityType}. Always tries to:
- *
+ * Applies a hotbar layout for an {@link ActivityType} in two clear phases:
  * <ol>
- *   <li>place the activity's primary tool somewhere on the hotbar
- *       (preferring the player's currently selected slot to avoid
- *       yanking what they were using),</li>
- *   <li>fill secondary preset slots with the best matching items,</li>
- *   <li>install the preset's off-hand item (typically a SHIELD), and</li>
- *   <li>switch the held slot to the primary tool ONLY if the slot the
- *       player has selected doesn't already contain a usable item for
- *       this activity.</li>
+ *   <li><b>Layout</b> — For each preset slot 0→8, place the best matching stack
+ *       from the inventory (deterministic order).</li>
+ *   <li><b>Main hand</b> — Select the first slot in index order whose contents
+ *       actually match that slot’s preset type (slot 0 first). That way
+ *       “Building” reliably puts a block in hand when blocks were placed in
+ *       slot 0, instead of leaving a pickaxe selected from a previous mode.</li>
  * </ol>
+ * Older versions tried to “respect” the held item with locks and combine
+ * bonuses; that produced unrelated items staying selected after G / auto-detect.
  */
-public class HotbarSwapper {
+public final class HotbarSwapper {
 
-    /** Off-hand slot index inside {@link PlayerInventory#main}-relative API. */
-    private static final int OFFHAND_SLOT_INDEX = 0; // PlayerInventory#offHand has size 1
+    private static final int OFFHAND_SLOT_INDEX = 0;
+
+    private HotbarSwapper() {}
 
     public static void swapHotbar(ServerPlayerEntity player, ActivityType newActivity) {
         if (player == null || newActivity == null) return;
 
         HotbarPreset preset = ProfileManager.getPreset(newActivity);
 
-        // Empty preset → only consider selecting a more appropriate slot
-        // (and only if the preset explicitly allows it).
         if (preset == null || preset.slots == null || preset.slots.isEmpty()) {
             if (preset == null || preset.allowSlotOverride) {
-                ensurePrimarySlotSelected(player, newActivity, null);
+                selectSlotForPrimaryTypeOnly(player, newActivity, null);
             }
+            player.playerScreenHandler.syncState();
             return;
         }
 
         PlayerInventory inventory = player.getInventory();
-        int playerSlot = inventory.selectedSlot;
-        ItemStack originallyHeld = inventory.getStack(playerSlot).copy();
-        String primaryType = preset.slots.get(0);
-
-        // ── Step 1: if the player is holding a usable primary item, lock it
-        //            in their current slot so we don't yank it away.
-        boolean playerHoldsValidPrimary = primaryType != null
-                && !originallyHeld.isEmpty()
-                && ItemHeuristics.evaluate(originallyHeld, primaryType) > 0;
-
         Set<Integer> lockedSlots = new HashSet<>();
-        if (playerHoldsValidPrimary) lockedSlots.add(playerSlot);
-
         int swapsPerformed = 0;
         boolean foundAnyMatch = false;
 
-        // ── Step 2: arrange every preset slot (0→8 only — HashMap iteration order is undefined)
         for (int targetSlot = 0; targetSlot < 9; targetSlot++) {
             if (!preset.slots.containsKey(targetSlot)) continue;
             String desiredType = preset.slots.get(targetSlot);
+            if (desiredType == null) continue;
 
             if (lockedSlots.contains(targetSlot)) continue;
 
@@ -75,13 +61,8 @@ public class HotbarSwapper {
                     ? -1
                     : ItemHeuristics.evaluate(currentInTarget, desiredType);
             if (currentScore > 0) foundAnyMatch = true;
-            if (!currentInTarget.isEmpty()
-                    && ItemStack.canCombine(currentInTarget, originallyHeld)
-                    && currentScore > 0) {
-                currentScore += 1000;
-            }
 
-            int bestSlot = findBestItem(inventory, desiredType, lockedSlots, originallyHeld);
+            int bestSlot = findBestInventorySlotForType(inventory, desiredType, lockedSlots);
             if (bestSlot == -1) {
                 if (currentScore > 0) lockedSlots.add(targetSlot);
                 continue;
@@ -89,15 +70,13 @@ public class HotbarSwapper {
 
             int bestScore = ItemHeuristics.evaluate(inventory.getStack(bestSlot), desiredType);
             if (bestScore > 0) foundAnyMatch = true;
-            if (ItemStack.canCombine(inventory.getStack(bestSlot), originallyHeld) && bestScore > 0) {
-                bestScore += 1000;
-            }
 
             if (bestScore > currentScore && bestSlot != targetSlot) {
                 ItemStack newStack = inventory.getStack(bestSlot).copy();
 
                 if (!currentInTarget.isEmpty()) {
-                    int emptyHotbar = getEmptyHotbarSlot(inventory, lockedSlots, preset.slots.keySet(), playerSlot);
+                    int emptyHotbar = findDisplacementsHotbarSlot(
+                            inventory, lockedSlots, preset.slots.keySet());
                     if (emptyHotbar != -1) {
                         inventory.setStack(emptyHotbar, currentInTarget);
                         inventory.setStack(targetSlot, newStack);
@@ -117,24 +96,21 @@ public class HotbarSwapper {
             }
         }
 
-        // ── Step 3: off-hand
         if (preset.offHandType != null) {
             placeInOffHand(player, preset.offHandType);
         }
 
-        // ── Step 4: select the right slot (respecting player's choice)
-        if (preset.allowSlotOverride && foundAnyMatch) {
-            ensurePrimarySlotSelected(player, newActivity, preset);
+        if (preset.allowSlotOverride) {
+            alignSelectedSlotToPreset(player, preset, newActivity);
         }
 
-        // ── Step 5: tidy up — merge any partial stacks the swap created
         if (swapsPerformed > 0) {
             mergeStacksInPlace(inventory);
         }
 
         if (!foundAnyMatch) {
             FlowInventoryMod.LOGGER.debug(
-                    "[FlowInventory] Activity {} requested but no matching items in inventory \u2014 leaving hotbar untouched",
+                    "[FlowInventory] Activity {} — no heuristic matches in inventory; hotbar unchanged except selection",
                     newActivity.displayName
             );
         }
@@ -143,10 +119,78 @@ public class HotbarSwapper {
     }
 
     /**
-     * Best-effort consolidation pass — combines any partial stacks of the
-     * same item that the swap may have created. Doesn't move things across
-     * categories, only collapses fragmentation.
+     * Walk slots 0→8 in order; pick the first whose stack scores for its preset
+     * type. Falls back to legacy primary-type search if preset slots are empty.
      */
+    private static void alignSelectedSlotToPreset(ServerPlayerEntity player,
+                                                   HotbarPreset preset,
+                                                   ActivityType activity) {
+        PlayerInventory inv = player.getInventory();
+
+        for (int slot = 0; slot < 9; slot++) {
+            if (preset.slots == null || !preset.slots.containsKey(slot)) continue;
+            String want = preset.slots.get(slot);
+            if (want == null) continue;
+
+            ItemStack st = inv.getStack(slot);
+            if (st.isEmpty()) continue;
+
+            if (ItemHeuristics.evaluate(st, want) > 0) {
+                applySelectedSlot(player, slot);
+                return;
+            }
+        }
+
+        selectSlotForPrimaryTypeOnly(player, activity, preset);
+    }
+
+    /** When the preset has no slot map, move hand to the best hotbar match for the activity’s primary type. */
+    private static void selectSlotForPrimaryTypeOnly(ServerPlayerEntity player,
+                                                    ActivityType activity,
+                                                    HotbarPreset preset) {
+        PlayerInventory inv = player.getInventory();
+        String primaryType = preset != null && preset.slots != null
+                ? preset.slots.get(0)
+                : null;
+        if (primaryType == null) {
+            primaryType = getPrimaryItemTypeForActivity(activity);
+        }
+        if (primaryType == null) return;
+
+        ItemStack held = inv.getStack(inv.selectedSlot);
+        if (!held.isEmpty() && ItemHeuristics.evaluate(held, primaryType) > 0) {
+            return;
+        }
+
+        int targetSlot = -1;
+        ItemStack s0 = inv.getStack(0);
+        if (!s0.isEmpty() && ItemHeuristics.evaluate(s0, primaryType) > 0) {
+            targetSlot = 0;
+        }
+        if (targetSlot < 0) {
+            targetSlot = findBestHotbarSlotForType(inv, primaryType);
+        }
+        if (targetSlot < 0 && preset != null && preset.slots != null) {
+            for (int i = 0; i < 9; i++) {
+                if (preset.slots.containsKey(i) && !inv.getStack(i).isEmpty()) {
+                    targetSlot = i;
+                    break;
+                }
+            }
+        }
+
+        if (targetSlot >= 0 && targetSlot < 9 && targetSlot != inv.selectedSlot) {
+            applySelectedSlot(player, targetSlot);
+        }
+    }
+
+    private static void applySelectedSlot(ServerPlayerEntity player, int slot) {
+        PlayerInventory inv = player.getInventory();
+        if (slot == inv.selectedSlot) return;
+        inv.selectedSlot = slot;
+        player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(slot));
+    }
+
     private static void mergeStacksInPlace(PlayerInventory inventory) {
         for (int i = 0; i < 36; i++) {
             ItemStack a = inventory.getStack(i);
@@ -166,11 +210,6 @@ public class HotbarSwapper {
         }
     }
 
-    /**
-     * Finds the best matching item in the inventory for {@code type} and
-     * places it in the off-hand. The current off-hand item swaps into the
-     * source slot.
-     */
     private static void placeInOffHand(ServerPlayerEntity player, String type) {
         PlayerInventory inv = player.getInventory();
         ItemStack currentOffHand = inv.offHand.get(OFFHAND_SLOT_INDEX);
@@ -204,64 +243,6 @@ public class HotbarSwapper {
         inv.offHand.set(OFFHAND_SLOT_INDEX, newOff);
     }
 
-    /**
-     * Force the player's held slot to the slot containing the activity's
-     * primary tool — but only if the player isn't already holding something
-     * usable for this activity.
-     */
-    private static void ensurePrimarySlotSelected(ServerPlayerEntity player,
-                                                  ActivityType activity,
-                                                  HotbarPreset preset) {
-        PlayerInventory inventory = player.getInventory();
-        int currentSlot = inventory.selectedSlot;
-        ItemStack currentHeld = inventory.getStack(currentSlot);
-
-        String primaryType = preset != null && preset.slots != null
-                ? preset.slots.get(0)
-                : null;
-        if (primaryType == null) primaryType = getPrimaryItemTypeForActivity(activity);
-
-        // If what the player is already holding is a valid primary item,
-        // KEEP that slot — don't yank it (this fixes the "scrolled item gets
-        // yanked back to slot 0" complaint).
-        if (primaryType != null && !currentHeld.isEmpty()
-                && ItemHeuristics.evaluate(currentHeld, primaryType) > 0) {
-            return;
-        }
-
-        int targetSlot = -1;
-
-        if (preset != null && preset.slots != null) {
-            String slot0Type = preset.slots.get(0);
-            if (slot0Type != null) {
-                ItemStack slot0 = inventory.getStack(0);
-                if (!slot0.isEmpty() && ItemHeuristics.evaluate(slot0, slot0Type) > 0) {
-                    targetSlot = 0;
-                }
-            }
-        }
-
-        if (targetSlot == -1) {
-            int found = findBestHotbarSlotForType(inventory, primaryType);
-            if (found != -1) targetSlot = found;
-        }
-
-        if (targetSlot == -1 && preset != null && preset.slots != null) {
-            for (int i = 0; i < 9; i++) {
-                if (preset.slots.containsKey(i) && !inventory.getStack(i).isEmpty()) {
-                    targetSlot = i;
-                    break;
-                }
-            }
-        }
-
-        if (targetSlot < 0 || targetSlot >= 9) return;
-        if (targetSlot == inventory.selectedSlot) return;
-
-        inventory.selectedSlot = targetSlot;
-        player.networkHandler.sendPacket(new UpdateSelectedSlotS2CPacket(targetSlot));
-    }
-
     private static int findBestHotbarSlotForType(PlayerInventory inventory, String type) {
         if (type == null) return -1;
         int bestSlot = -1;
@@ -278,8 +259,8 @@ public class HotbarSwapper {
         return bestSlot;
     }
 
-    private static int findBestItem(PlayerInventory inventory, String type,
-                                    Set<Integer> lockedSlots, ItemStack heldItem) {
+    private static int findBestInventorySlotForType(PlayerInventory inventory, String type,
+                                                    Set<Integer> lockedSlots) {
         int bestSlot = -1;
         int bestScore = -1;
         for (int i = 0; i < 36; i++) {
@@ -288,10 +269,6 @@ public class HotbarSwapper {
             if (stack.isEmpty()) continue;
 
             int score = ItemHeuristics.evaluate(stack, type);
-            if (score > 0 && ItemStack.canCombine(stack, heldItem)) {
-                score += 1000;
-            }
-
             if (score > bestScore) {
                 bestScore = score;
                 bestSlot = i;
@@ -300,68 +277,43 @@ public class HotbarSwapper {
         return bestSlot;
     }
 
-    private static int getEmptyHotbarSlot(PlayerInventory inventory, Set<Integer> lockedSlots,
-                                          Set<Integer> presetSlots, int playerSlot) {
+    /**
+     * Empty hotbar slot to park a displaced stack — any index not in the preset
+     * and not locked is allowed (including the player’s current slot if empty).
+     */
+    private static int findDisplacementsHotbarSlot(PlayerInventory inventory, Set<Integer> lockedSlots,
+                                                   Set<Integer> presetSlotIndices) {
         for (int i = 0; i < 9; i++) {
-            if (i == playerSlot) continue; // never overwrite the slot the player is using
             if (inventory.getStack(i).isEmpty()
                     && !lockedSlots.contains(i)
-                    && !presetSlots.contains(i)) {
+                    && !presetSlotIndices.contains(i)) {
                 return i;
             }
         }
         return -1;
     }
 
-    /**
-     * Fallback when the preset has no slot 0: matches the first slot of
-     * {@link ProfileManager}'s built-in presets for each {@link ActivityType}.
-     */
     private static String getPrimaryItemTypeForActivity(ActivityType activity) {
-        switch (activity) {
-            case COMBAT:
-            case EMERGENCY_COMBAT:
-                return "SWORD";
-            case MINING:
-                return "PICKAXE";
-            case BUILDING:
-                return "BLOCK";
-            case FARMING:
-                return "HOE";
-            case REDSTONE:
-                return "REDSTONE";
-            case CRAFTING:
-                return "BOOK";
-            case EXPLORATION:
-                return "COMPASS";
-            case TRAVEL:
-                return "ELYTRA";
-            case UTILITY:
-                return "TOOL";
-            case FOOD:
-                return "FOOD";
-            case LOW_HEALTH:
-                return "GOLDEN_APPLE";
-            case LOW_HUNGER:
-                return "STEAK";
-            case ON_FIRE:
-            case IN_LAVA:
-                return "WATER_BUCKET";
-            case DROWNING:
-                return "BUCKET";
-            case FALLING:
-                return "ELYTRA";
-            case POISONED:
-            case WITHERING:
-                return "MILK_BUCKET";
-            case SLEEPING:
-                return "BED";
-            case IDLE:
-                return null;
-            case GENERAL:
-            case UNKNOWN:
-            default:
-                return "SWORD";
-        }
+        return switch (activity) {
+            case COMBAT, EMERGENCY_COMBAT -> "SWORD";
+            case MINING -> "PICKAXE";
+            case BUILDING -> "BLOCK";
+            case FARMING -> "HOE";
+            case REDSTONE -> "REDSTONE";
+            case CRAFTING -> "BOOK";
+            case EXPLORATION -> "COMPASS";
+            case TRAVEL -> "ELYTRA";
+            case UTILITY -> "TOOL";
+            case FOOD -> "FOOD";
+            case LOW_HEALTH -> "GOLDEN_APPLE";
+            case LOW_HUNGER -> "STEAK";
+            case ON_FIRE, IN_LAVA -> "WATER_BUCKET";
+            case DROWNING -> "BUCKET";
+            case FALLING -> "ELYTRA";
+            case POISONED, WITHERING -> "MILK_BUCKET";
+            case SLEEPING -> "BED";
+            case IDLE -> null;
+            case GENERAL, UNKNOWN -> "SWORD";
+        };
     }
 }

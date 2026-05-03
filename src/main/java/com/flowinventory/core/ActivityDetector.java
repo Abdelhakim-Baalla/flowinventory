@@ -161,11 +161,9 @@ public class ActivityDetector {
         activityWeights.clear();
         for (ActivityType t : ActivityType.values()) activityWeights.put(t, 0);
 
-        // 1. Held item is the strongest item-level signal (weight ×4)
-        scoreFromItem(held, 4);
-
-        // 2. Off-hand item gets a smaller bump (weight ×2)
-        scoreFromItem(offhand, 2);
+        // 1–2. Held / off-hand should beat context noise
+        scoreFromItem(held, 6);
+        scoreFromItem(offhand, 3);
 
         // 3. Armor signals (each piece weight ×1)
         for (ItemStack armor : player.getArmorItems()) {
@@ -192,7 +190,7 @@ public class ActivityDetector {
 
         // 10. Boost the current activity to reduce flapping (ties → same winner)
         if (currentActivity != ActivityType.GENERAL && currentActivity != ActivityType.UNKNOWN) {
-            activityWeights.merge(currentActivity, 22, Integer::sum);
+            activityWeights.merge(currentActivity, 28, Integer::sum);
         }
 
         // 11. Emergency check FIRST — bypasses every other rule, including
@@ -946,26 +944,26 @@ public class ActivityDetector {
             }
 
             switch (type) {
-                case "SHEEP" -> bump(ActivityType.FARMING, 6);
-                case "COW", "MOOSHROOM" -> bump(ActivityType.FARMING, 6);
-                case "PIG" -> bump(ActivityType.FARMING, 6);
-                case "CHICKEN" -> bump(ActivityType.FARMING, 6);
-                case "BEE" -> bump(ActivityType.FARMING, 8);
-                case "VILLAGER" -> bump(ActivityType.CRAFTING, 14);
-                case "HORSE", "DONKEY", "MULE" -> bump(ActivityType.TRAVEL, 6);
-                case "CAMEL" -> bump(ActivityType.TRAVEL, 8);
-                case "LLAMA", "TRADER_LLAMA" -> bump(ActivityType.TRAVEL, 6);
-                case "STRIDER" -> bump(ActivityType.TRAVEL, 8);
+                case "SHEEP" -> bump(ActivityType.FARMING, 4);
+                case "COW", "MOOSHROOM" -> bump(ActivityType.FARMING, 4);
+                case "PIG" -> bump(ActivityType.FARMING, 4);
+                case "CHICKEN" -> bump(ActivityType.FARMING, 4);
+                case "BEE" -> bump(ActivityType.FARMING, 5);
+                case "VILLAGER" -> bump(ActivityType.CRAFTING, 8);
+                case "HORSE", "DONKEY", "MULE" -> bump(ActivityType.TRAVEL, 4);
+                case "CAMEL" -> bump(ActivityType.TRAVEL, 5);
+                case "LLAMA", "TRADER_LLAMA" -> bump(ActivityType.TRAVEL, 4);
+                case "STRIDER" -> bump(ActivityType.TRAVEL, 5);
                 default -> { /* no-op */ }
             }
         }
 
-        if (anyHostile) bump(ActivityType.COMBAT, 8 + totalHostiles * 2);
-        if (totalHostiles >= 4) bump(ActivityType.COMBAT, 18);
-        if (totalHostiles >= 8) bump(ActivityType.COMBAT, 24);
-        if (totalAnimals >= 3) {
-            bump(ActivityType.FARMING, 8);
-            bump(ActivityType.FARMING, 4);
+        if (anyHostile) bump(ActivityType.COMBAT, 4 + totalHostiles);
+        if (totalHostiles >= 4) bump(ActivityType.COMBAT, 10);
+        if (totalHostiles >= 8) bump(ActivityType.COMBAT, 14);
+        if (totalAnimals >= 4) {
+            bump(ActivityType.FARMING, 5);
+            bump(ActivityType.FARMING, 3);
         }
     }
 
@@ -978,13 +976,13 @@ public class ActivityDetector {
 
         RegistryKey<World> dim = world.getRegistryKey();
         if (dim == World.NETHER) {
-            bump(ActivityType.EXPLORATION, 8);
             bump(ActivityType.EXPLORATION, 4);
+            bump(ActivityType.EXPLORATION, 2);
         } else if (dim == World.END) {
-            bump(ActivityType.EXPLORATION, 8);
             bump(ActivityType.EXPLORATION, 4);
+            bump(ActivityType.EXPLORATION, 2);
         } else {
-            bump(ActivityType.EXPLORATION, 4);
+            bump(ActivityType.EXPLORATION, 2);
         }
     }
 
@@ -996,26 +994,26 @@ public class ActivityDetector {
 
         double y = player.getY();
         if (y < 40) {
-            bump(ActivityType.MINING, 6);
-            bump(ActivityType.MINING, 4);
+            bump(ActivityType.MINING, 3);
+            bump(ActivityType.MINING, 2);
         }
         if (y < 0) {
-            bump(ActivityType.MINING, 6);
-            bump(ActivityType.EXPLORATION, 4);
+            bump(ActivityType.MINING, 3);
+            bump(ActivityType.EXPLORATION, 2);
         }
-        if (y > 100 && !player.isOnGround()) bump(ActivityType.TRAVEL, 4);
+        if (y > 100 && !player.isOnGround()) bump(ActivityType.TRAVEL, 2);
 
-        if (world.getLightLevel(player.getBlockPos()) < 7) bump(ActivityType.UTILITY, 3);
+        if (world.getLightLevel(player.getBlockPos()) < 7) bump(ActivityType.UTILITY, 2);
 
         long time = world.getTimeOfDay() % 24000;
-        if (time > 13000 && time < 23000) bump(ActivityType.COMBAT, 3);
+        if (time > 13000 && time < 23000) bump(ActivityType.COMBAT, 2);
 
         if (player.isSubmergedInWater()) {
-            bump(ActivityType.EXPLORATION, 12);
             bump(ActivityType.EXPLORATION, 6);
+            bump(ActivityType.EXPLORATION, 3);
         }
         if (player.isTouchingWater() && !player.isSubmergedInWater()) {
-            bump(ActivityType.EXPLORATION, 4);
+            bump(ActivityType.EXPLORATION, 2);
         }
     }
 
@@ -1049,8 +1047,8 @@ public class ActivityDetector {
         if (idleTicks > 1200) bump(ActivityType.IDLE, 24);
 
         if (System.currentTimeMillis() - lastHurtTime < 4000) {
-            bump(ActivityType.COMBAT, 14);
-            bump(ActivityType.COMBAT, 6);
+            bump(ActivityType.COMBAT, 8);
+            bump(ActivityType.COMBAT, 4);
         }
     }
 
@@ -1116,8 +1114,8 @@ public class ActivityDetector {
         if (player.hasStatusEffect(StatusEffects.FIRE_RESISTANCE)) bump(ActivityType.EXPLORATION, 6);
         if (player.hasStatusEffect(StatusEffects.SLOW_FALLING)) bump(ActivityType.TRAVEL, 6);
 
-        if (player.isSneaking()) bump(ActivityType.COMBAT, 4);
-        if (player.isSprinting() && !player.isFallFlying()) bump(ActivityType.COMBAT, 3);
+        if (player.isSneaking()) bump(ActivityType.COMBAT, 2);
+        if (player.isSprinting() && !player.isFallFlying()) bump(ActivityType.COMBAT, 2);
     }
 
     // ==================== NEARBY BLOCKS / PLAYERS ====================
@@ -1136,35 +1134,35 @@ public class ActivityDetector {
                     String name = Registries.BLOCK.getId(block).getPath();
 
                     switch (name) {
-                        case "crafting_table" -> bump(ActivityType.UTILITY, 8);
-                        case "furnace" -> bump(ActivityType.CRAFTING, 12);
-                        case "blast_furnace" -> bump(ActivityType.CRAFTING, 14);
-                        case "smoker" -> bump(ActivityType.CRAFTING, 14);
-                        case "anvil", "chipped_anvil", "damaged_anvil" -> bump(ActivityType.CRAFTING, 18);
-                        case "enchanting_table" -> bump(ActivityType.CRAFTING, 24);
-                        case "brewing_stand" -> bump(ActivityType.CRAFTING, 24);
-                        case "loom" -> bump(ActivityType.CRAFTING, 18);
-                        case "cartography_table" -> bump(ActivityType.CRAFTING, 18);
-                        case "smithing_table" -> bump(ActivityType.CRAFTING, 18);
-                        case "stonecutter" -> bump(ActivityType.CRAFTING, 18);
-                        case "grindstone" -> bump(ActivityType.CRAFTING, 18);
-                        case "composter" -> bump(ActivityType.CRAFTING, 14);
-                        case "respawn_anchor" -> bump(ActivityType.EXPLORATION, 8);
-                        case "lodestone" -> bump(ActivityType.EXPLORATION, 10);
-                        case "beacon" -> bump(ActivityType.UTILITY, 12);
-                        case "bookshelf", "chiseled_bookshelf" -> bump(ActivityType.CRAFTING, 6);
-                        case "jukebox" -> bump(ActivityType.IDLE, 8);
-                        case "barrel", "chest", "trapped_chest" -> bump(ActivityType.UTILITY, 4);
-                        case "ender_chest" -> bump(ActivityType.EXPLORATION, 10);
-                        case "shulker_box" -> bump(ActivityType.EXPLORATION, 8);
-                        case "beehive", "bee_nest" -> bump(ActivityType.FARMING, 14);
-                        case "soul_campfire" -> bump(ActivityType.EXPLORATION, 6);
-                        case "campfire" -> bump(ActivityType.CRAFTING, 8);
-                        case "spawner" -> bump(ActivityType.COMBAT, 12);
-                        case "sculk_shrieker", "sculk_sensor", "sculk_catalyst" -> bump(ActivityType.EXPLORATION, 18);
+                        case "crafting_table" -> bump(ActivityType.UTILITY, 4);
+                        case "furnace" -> bump(ActivityType.CRAFTING, 6);
+                        case "blast_furnace" -> bump(ActivityType.CRAFTING, 7);
+                        case "smoker" -> bump(ActivityType.CRAFTING, 7);
+                        case "anvil", "chipped_anvil", "damaged_anvil" -> bump(ActivityType.CRAFTING, 9);
+                        case "enchanting_table" -> bump(ActivityType.CRAFTING, 12);
+                        case "brewing_stand" -> bump(ActivityType.CRAFTING, 12);
+                        case "loom" -> bump(ActivityType.CRAFTING, 9);
+                        case "cartography_table" -> bump(ActivityType.CRAFTING, 9);
+                        case "smithing_table" -> bump(ActivityType.CRAFTING, 9);
+                        case "stonecutter" -> bump(ActivityType.CRAFTING, 9);
+                        case "grindstone" -> bump(ActivityType.CRAFTING, 9);
+                        case "composter" -> bump(ActivityType.CRAFTING, 7);
+                        case "respawn_anchor" -> bump(ActivityType.EXPLORATION, 4);
+                        case "lodestone" -> bump(ActivityType.EXPLORATION, 5);
+                        case "beacon" -> bump(ActivityType.UTILITY, 6);
+                        case "bookshelf", "chiseled_bookshelf" -> bump(ActivityType.CRAFTING, 3);
+                        case "jukebox" -> bump(ActivityType.IDLE, 4);
+                        case "barrel", "chest", "trapped_chest" -> bump(ActivityType.UTILITY, 2);
+                        case "ender_chest" -> bump(ActivityType.EXPLORATION, 5);
+                        case "shulker_box" -> bump(ActivityType.EXPLORATION, 4);
+                        case "beehive", "bee_nest" -> bump(ActivityType.FARMING, 7);
+                        case "soul_campfire" -> bump(ActivityType.EXPLORATION, 3);
+                        case "campfire" -> bump(ActivityType.CRAFTING, 4);
+                        case "spawner" -> bump(ActivityType.COMBAT, 6);
+                        case "sculk_shrieker", "sculk_sensor", "sculk_catalyst" -> bump(ActivityType.EXPLORATION, 9);
                         default -> { /* no-op */ }
                     }
-                    if (name.contains("_bed")) bump(ActivityType.SLEEPING, 6);
+                    if (name.contains("_bed")) bump(ActivityType.SLEEPING, 3);
                 }
             }
         }
@@ -1174,7 +1172,7 @@ public class ActivityDetector {
         List<PlayerEntity> others = world.getEntitiesByClass(
                 PlayerEntity.class, pvpBox, p -> p != player && p.isAlive()
         );
-        if (!others.isEmpty()) bump(ActivityType.COMBAT, 12 + Math.min(others.size() * 4, 24));
+        if (!others.isEmpty()) bump(ActivityType.COMBAT, 6 + Math.min(others.size() * 2, 12));
     }
 
     private void bump(ActivityType type, int amount) {
