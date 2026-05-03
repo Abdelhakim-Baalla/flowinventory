@@ -17,10 +17,10 @@ import java.util.Set;
  * <ol>
  *   <li><b>Layout</b> — For each preset slot 0→8, place the best matching stack
  *       from the inventory (deterministic order).</li>
- *   <li><b>Main hand</b> — Select the first slot in index order whose contents
- *       actually match that slot’s preset type (slot 0 first). That way
- *       “Building” reliably puts a block in hand when blocks were placed in
- *       slot 0, instead of leaving a pickaxe selected from a previous mode.</li>
+ *   <li><b>Main hand</b> — Prefer an activity-specific tool order (e.g. Exploration:
+ *       compass before sword), then the best-scoring preset slot. First-fit by slot
+ *       index wrongly left sugar cane ahead of logs for Building when slot 0 happened
+ *       to match “BLOCK”.</li>
  * </ol>
  * Older versions tried to “respect” the held item with locks and combine
  * bonuses; that produced unrelated items staying selected after G / auto-detect.
@@ -128,32 +128,91 @@ public final class HotbarSwapper {
     }
 
     /**
-     * Walk slots 0→8 in order; pick the first whose stack scores for its preset
-     * type. Falls back to legacy primary-type search if preset slots are empty.
+     * Chooses main hand: activity-ordered types first (navigation vs combat, crops vs logs),
+     * then the preset slot with the strongest heuristic match (not first index).
      */
     private static void alignSelectedSlotToPreset(ServerPlayerEntity player,
                                                    HotbarPreset preset,
                                                    ActivityType activity) {
         PlayerInventory inv = player.getInventory();
 
-        for (int slot = 0; slot < 9; slot++) {
-            if (preset.slots == null || !preset.slots.containsKey(slot)) continue;
-            String want = preset.slots.get(slot);
-            if (want == null) continue;
-
-            if (deferSnackSlotForHandSelection(want, activity)) continue;
-
-            ItemStack st = inv.getStack(slot);
-            if (st.isEmpty()) continue;
-
-            int ev = ItemHeuristics.evaluate(st, want);
-            if (ev >= PRESET_FIT_MIN_FOR_HAND) {
-                applySelectedSlot(player, slot);
-                return;
+        String[] priority = handPriorityTypes(activity);
+        if (priority != null) {
+            for (String type : priority) {
+                if (deferSnackSlotForHandSelection(type, activity)) continue;
+                int slot = findBestHotbarSlotForType(inv, type, PRESET_FIT_MIN_FOR_HAND);
+                if (slot >= 0) {
+                    applySelectedSlot(player, slot);
+                    return;
+                }
             }
         }
 
+        int bestSlot = -1;
+        int bestScore = -1;
+        if (preset.slots != null) {
+            for (int slot = 0; slot < 9; slot++) {
+                if (!preset.slots.containsKey(slot)) continue;
+                String want = preset.slots.get(slot);
+                if (want == null) continue;
+                if (deferSnackSlotForHandSelection(want, activity)) continue;
+                ItemStack st = inv.getStack(slot);
+                if (st.isEmpty()) continue;
+                int ev = ItemHeuristics.evaluate(st, want);
+                if (ev >= PRESET_FIT_MIN_FOR_HAND && ev > bestScore) {
+                    bestScore = ev;
+                    bestSlot = slot;
+                }
+            }
+        }
+        if (bestSlot >= 0) {
+            applySelectedSlot(player, bestSlot);
+            return;
+        }
+
         selectSlotForPrimaryTypeOnly(player, activity, preset);
+    }
+
+    /**
+     * Ordered types for “what should be in main hand” after pressing G. Stops the
+     * preset’s first matching slot (e.g. slot 0 sugar cane) from beating better gear
+     * elsewhere on the bar.
+     */
+    private static String[] handPriorityTypes(ActivityType activity) {
+        return switch (activity) {
+            case COMBAT, EMERGENCY_COMBAT -> new String[]{
+                    "SWORD", "AXE_COMBAT", "MACE", "SHIELD", "BOW", "CROSSBOW", "TRIDENT",
+                    "POTION", "GOLDEN_APPLE", "ENDER_PEARL", "FOOD"};
+            case MINING -> new String[]{
+                    "PICKAXE", "SHOVEL", "TORCH", "BLOCK", "LOG", "LADDER", "WATER_BUCKET", "BUCKET", "FOOD"};
+            case BUILDING -> new String[]{
+                    "BLOCK", "LOG", "PLANKS", "STAIRS", "SLAB", "DOOR", "TRAPDOOR", "WALL", "FENCE",
+                    "TORCH", "PICKAXE", "AXE", "SHOVEL", "FOOD"};
+            case FARMING -> new String[]{
+                    "HOE", "SEEDS", "BONE_MEAL", "WATER_BUCKET", "BUCKET", "CARROT", "POTATO", "BEETROOT",
+                    "SUGAR_CANE", "WHEAT", "BAMBOO", "FLOWER", "SHEARS", "LEAD", "FISHING_ROD", "FOOD"};
+            case REDSTONE -> new String[]{
+                    "REDSTONE", "REPEATER", "COMPARATOR", "PISTON", "OBSERVER", "LEVER", "BUTTON",
+                    "TORCH", "PICKAXE"};
+            case CRAFTING -> new String[]{
+                    "BOOK", "ENCHANTED_BOOK", "LAPIS", "EXPERIENCE_BOTTLE", "BOTTLE", "BLAZE_POWDER",
+                    "DIAMOND", "EMERALD", "FOOD"};
+            case EXPLORATION -> new String[]{
+                    "COMPASS", "MAP", "FILLED_MAP", "CLOCK", "SPYGLASS", "TORCH", "LANTERN",
+                    "WATER_BUCKET", "PICKAXE", "SHOVEL", "SWORD", "BOW", "FOOD"};
+            case TRAVEL -> new String[]{
+                    "ELYTRA", "FIREWORK", "SADDLE", "BOAT", "MINECART", "CARROT_ON_A_STICK",
+                    "WARPED_FUNGUS_ON_A_STICK", "FISHING_ROD", "LEAD", "FOOD"};
+            case UTILITY -> new String[]{
+                    "TOOL", "BUCKET", "WATER_BUCKET", "TORCH", "FLINT_AND_STEEL", "LEAD", "NAME_TAG",
+                    "PICKAXE", "FOOD"};
+            case FOOD -> new String[]{
+                    "GOLDEN_APPLE", "ENCHANTED_GOLDEN_APPLE", "GOLDEN_CARROT", "STEAK", "BREAD",
+                    "FOOD", "HONEY_BOTTLE"};
+            case GENERAL, UNKNOWN -> new String[]{
+                    "SWORD", "PICKAXE", "AXE", "SHOVEL", "HOE", "BOW", "CROSSBOW", "TORCH", "BLOCK", "FOOD"};
+            default -> null;
+        };
     }
 
     /**

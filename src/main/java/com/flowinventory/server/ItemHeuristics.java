@@ -1149,6 +1149,19 @@ public class ItemHeuristics {
         String itemId = Registries.ITEM.getId(item).toString();
         String path = new Identifier(itemId).getPath();
 
+        // Farm / grow-style blocks — low priority as "building material" vs wood/stone
+        if (path.equals("sugar_cane") || path.equals("bamboo") || path.equals("cactus")
+                || path.equals("kelp") || path.equals("vine") || path.equals("cocoa_beans")) {
+            return 12;
+        }
+
+        if (path.endsWith("_log") || path.endsWith("_stem")
+                || path.endsWith("_wood") || path.endsWith("_hyphae")) return 58;
+        if (path.endsWith("_planks")) return 54;
+        if (path.endsWith("_stairs") || path.endsWith("_slab")) return 52;
+        if (path.endsWith("_door") || path.endsWith("_trapdoor")) return 50;
+        if (path.endsWith("_fence") || path.endsWith("_wall")) return 48;
+
         if (path.contains("dirt") || path.contains("grass")) return 30;
         if (path.contains("cobblestone") || path.contains("stone_bricks")) return 40;
         if (path.contains("obsidian")) return 80;
