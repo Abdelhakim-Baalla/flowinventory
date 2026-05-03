@@ -10,43 +10,66 @@ import java.io.*;
 import java.nio.file.Path;
 
 public class FlowConfig {
-
-    // ── Activity Detection ────────────────────────────────
+    
+    // ── Activity Detection ─────────────────────────────────────────
     public boolean autoDetectActivity = true;
     public boolean autoApplyProfile = true;
     public int activitySwitchDelay = 30;
     public int combatDetectionRange = 8;
-
-    // ── Sorting ───────────────────────────────────────────
-    public String sortMode = "SMART";
+    public boolean enableBiomeDetection = true;
+    public boolean enableMobSpecificDetection = true;
+    public boolean enableDimensionalContext = true;
+    public int activityConfidenceThreshold = 60;
+    
+    // ── Advanced Detection Settings ───────────────────────────────
+    public boolean enableArmorCheck = true;
+    public boolean enableEnchantmentPriority = true;
+    public boolean enableDurabilityAwareness = true;
+    public boolean enableStackSizePreference = true;
+    public boolean enableContextAwareness = true;
+    
+    // ── Sorting ────────────────────────────────────────────────────
+    public String sortMode = "SMART"; // Options: "SMART", "ALPHABETICAL", "TIER"
     public boolean mergeStacks = true;
-
-    // ── HUD ───────────────────────────────────────────────
+    public boolean lockHotbar = false;
+    public boolean preserveHotbarOnSort = false;
+    public boolean categoryColorCoding = false;
+    
+    // ── Hotbar Selection ───────────────────────────────────────────
+    public boolean smartSlotSelection = true;
+    public int primarySlotIndex = 0;
+    public boolean cycleThroughDuplicates = false;
+    
+    // ── HUD ────────────────────────────────────────────────────────
     public boolean showHudOverlay = true;
     public String hudPosition = "TOP_RIGHT";
     public boolean showActivityMessages = true;
     public boolean showKeyHints = true;
-
-    // ── Pattern Learning ──────────────────────────────────
+    public boolean showItemRecommendations = false;
+    public int hudOpacity = 180;
+    
+    // ── Pattern Learning ───────────────────────────────────────────
     public boolean enablePatternLearning = true;
-
-    // ── Persistence ───────────────────────────────────────
+    public int patternMemorySize = 1000;
+    public boolean learnFromManualSwitches = true;
+    
+    // ── Persistence ────────────────────────────────────────────────
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final Logger LOGGER = LoggerFactory.getLogger("flowinventory");
     private static final String CONFIG_FILE = "flowinventory/config.json";
-
+    
     public static FlowConfig load() {
         Path configPath = FabricLoader.getInstance()
                 .getConfigDir()
                 .resolve(CONFIG_FILE);
-
+        
         if (!configPath.toFile().exists()) {
             LOGGER.info("[FlowInventory] No config found, creating defaults...");
             FlowConfig defaults = new FlowConfig();
             defaults.save();
             return defaults;
         }
-
+        
         try (Reader reader = new FileReader(configPath.toFile())) {
             FlowConfig loaded = GSON.fromJson(reader, FlowConfig.class);
             LOGGER.info("[FlowInventory] Config loaded successfully.");
@@ -56,16 +79,16 @@ public class FlowConfig {
             return new FlowConfig();
         }
     }
-
+    
     public void save() {
         Path configDir = FabricLoader.getInstance()
                 .getConfigDir()
                 .resolve("flowinventory");
-
+        
         configDir.toFile().mkdirs();
-
+        
         Path configPath = configDir.resolve("config.json");
-
+        
         try (Writer writer = new FileWriter(configPath.toFile())) {
             GSON.toJson(this, writer);
         } catch (IOException e) {

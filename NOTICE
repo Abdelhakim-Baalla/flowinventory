@@ -1,0 +1,10 @@
+FlowInventory
+Copyright (c) 2026 Abdelhakim Baalla (Dino Crafting) and contributors.
+SPDX-License-Identifier: MIT
+
+This mod bundles the following library inside the distributed JAR (Fabric `include`):
+  - Cloth Config (Fabric): https://github.com/shedaniel/cloth-config
+  See that project for its license and notices.
+
+FlowInventory also depends on (not bundled):
+  - Fabric API, Minecraft — Mojang / FabricMC terms apply to those components.
