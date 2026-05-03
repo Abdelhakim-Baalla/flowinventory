@@ -211,6 +211,29 @@ public final class HotbarSwapper {
                     "FOOD", "HONEY_BOTTLE"};
             case GENERAL, UNKNOWN -> new String[]{
                     "SWORD", "PICKAXE", "AXE", "SHOVEL", "HOE", "BOW", "CROSSBOW", "TORCH", "BLOCK", "FOOD"};
+            // Vitals / emergencies — mirror preset slot-0 intent so main hand is not left on a weak
+            // preset match when multiple slots score similarly (default null only did max-score preset).
+            case LOW_HEALTH -> new String[]{
+                    "GOLDEN_APPLE", "ENCHANTED_GOLDEN_APPLE", "POTION", "MILK_BUCKET", "HONEY_BOTTLE",
+                    "FOOD", "ENDER_PEARL", "SHIELD", "SWORD", "TOTEM"};
+            case LOW_HUNGER -> new String[]{
+                    "STEAK", "GOLDEN_CARROT", "BREAD", "FOOD", "GOLDEN_APPLE"};
+            case ON_FIRE -> new String[]{
+                    "WATER_BUCKET", "POTION", "MILK_BUCKET", "FOOD", "GOLDEN_APPLE", "BLOCK", "BUCKET", "SHIELD"};
+            case IN_LAVA -> new String[]{
+                    "WATER_BUCKET", "POTION", "BLOCK", "GOLDEN_APPLE", "ENCHANTED_GOLDEN_APPLE",
+                    "MILK_BUCKET", "BUCKET", "ENDER_PEARL", "FOOD", "TOTEM"};
+            case DROWNING -> new String[]{
+                    "BUCKET", "DOOR", "BLOCK", "POTION", "GOLDEN_APPLE", "FOOD", "PICKAXE", "TRIDENT"};
+            case FALLING -> new String[]{
+                    "ELYTRA", "FIREWORK", "WATER_BUCKET", "ENDER_PEARL", "POTION", "FOOD", "GOLDEN_APPLE", "BLOCK"};
+            case POISONED -> new String[]{
+                    "MILK_BUCKET", "POTION", "GOLDEN_APPLE", "FOOD", "HONEY_BOTTLE", "BUCKET", "SHIELD", "SWORD"};
+            case WITHERING -> new String[]{
+                    "MILK_BUCKET", "GOLDEN_APPLE", "ENCHANTED_GOLDEN_APPLE", "POTION", "FOOD",
+                    "BUCKET", "SHIELD", "SWORD", "TOTEM"};
+            case SLEEPING -> new String[]{"BED", "BLOCK", "TORCH", "FOOD", "BOOK", "MAP", "COMPASS", "ENDER_PEARL"};
+            case IDLE -> null;
             default -> null;
         };
     }
@@ -222,12 +245,13 @@ public final class HotbarSwapper {
     private static boolean deferSnackSlotForHandSelection(String presetType, ActivityType activity) {
         if (presetType == null) return false;
         if (activity == ActivityType.FOOD || activity == ActivityType.GENERAL) return false;
-        // Emergency / vitals: golden apple & food slots are the point — never defer
+        // Emergency / vitals / bed-time: snack slots are intentional — never defer
         if (activity == ActivityType.LOW_HEALTH || activity == ActivityType.LOW_HUNGER
                 || activity == ActivityType.ON_FIRE || activity == ActivityType.IN_LAVA
                 || activity == ActivityType.DROWNING || activity == ActivityType.FALLING
                 || activity == ActivityType.POISONED || activity == ActivityType.WITHERING
-                || activity == ActivityType.EMERGENCY_COMBAT) {
+                || activity == ActivityType.EMERGENCY_COMBAT
+                || activity == ActivityType.SLEEPING) {
             return false;
         }
         return switch (presetType) {
